@@ -12,7 +12,7 @@
  * 屏幕颜色自动校准
  * Screen Colour Automatic Calibration
  * by 灰灰蓝 948689673@qq.com WeChat Rs200215
- * version 0.04
+ * version 0.05
  * version 0.01 Create at 2025/12/13
  * TODO 添加亮度极值平滑系统。√
  * TODO 添加ui过滤。√
@@ -20,6 +20,7 @@
  * version 0.04 Create at 2025/12/18
  * TODO 改进亮度极值平滑，使其不依赖历史值。
  * TODO 改进检测算法，使用单纹理以提高性能。
+ * version 0.05 修复ui过滤不生效的问题。
  */
 
 #include "ReShadeUI.fxh"
@@ -448,7 +449,7 @@ float4 Pass1_DownsampleTo1024(float4 position : SV_Position, float2 texcoord : T
 	if (EnableUIFilter)
 	{
 		// 应用滤除
-		clamp(luminance,UiFilterBlack,UiFilterWhite);
+		luminance = clamp(luminance,UiFilterBlack,UiFilterWhite);
 		/*
 		luminance += (luminance < UiFilterBlack) * UiFilterBlack;
 		Luminance -= (Luminance > UiFilterWhite) * UiFilterWhite;
