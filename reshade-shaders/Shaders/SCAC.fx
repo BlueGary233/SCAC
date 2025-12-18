@@ -12,7 +12,7 @@
  * 屏幕颜色自动校准
  * Screen Colour Automatic Calibration
  * by 灰灰蓝 948689673@qq.com WeChat Rs200215
- * version 0.05
+ * version 0.06
  * version 0.01 Create at 2025/12/13
  * TODO 添加亮度极值平滑系统。√
  * TODO 添加ui过滤。√
@@ -20,7 +20,8 @@
  * version 0.04 Create at 2025/12/18
  * TODO 改进亮度极值平滑，使其不依赖历史值。
  * TODO 改进检测算法，使用单纹理以提高性能。
- * version 0.05 修复ui过滤不生效的问题。
+ * version 0.05 修复了UIFilter不生效的问题。
+ * version 0.06 改进了亮度计算的算法。
  */
 
 #include "ReShadeUI.fxh"
@@ -166,10 +167,10 @@ uniform bool EnableDebug <
 // 辅助函数
 // ============================================================================
 
-// 计算像素亮度：max(max(r,g),b) - 单通道简化,max确保黑位准确。
+// 计算像素亮度：min(min(r,g),b) - 单通道简化,min确保黑位准确和画面稳定。
 float CalculateLuminance(float3 color)
 {
-	return max(max(color.r, color.g), color.b);
+	return min(min(color.r, color.g), color.b);//(color.r + color.g + color.b)/3;
 }
 
 // 颜色校准函数 - 支持scRGB/HDR
@@ -639,10 +640,10 @@ float3 Pass9_FinalCalibration(float4 position : SV_Position, float2 texcoord : T
 	// 从后缓冲区采样
 	float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
 	
+	float luminance = CalculateLuminance(color);
 	[branch]
 	if (ShowFilterEffect)
 	{
-		float luminance = CalculateLuminance(color);
 		// 找到被滤除的像素
 		if (luminance < UiFilterBlack)
 		{
@@ -654,6 +655,7 @@ float3 Pass9_FinalCalibration(float4 position : SV_Position, float2 texcoord : T
 		}
 		//color = all(clamp(luminance,UiFilterBlack,UiFilterWhite));
 	}
+
 	// 将texcoord转换为像素坐标（用于调试视图）
 	uint x = (uint)(texcoord.x * BUFFER_WIDTH);
 	uint y = (uint)(texcoord.y * BUFFER_HEIGHT);
@@ -934,7 +936,7 @@ technique SCAC
 		PixelShader = Pass6_Reduction5;
 		RenderTarget = TextureMip5;
 	}
-	
+
 	pass Pass7_StoreCurrentToHistory
 	{
 		VertexShader = PostProcessVS;
