@@ -199,7 +199,7 @@ SCAC (Screen Colour Automatic Calibration) is a ReShade shader for automatic scr
 ### Technical Details
 
 #### How It Works
-1. **Luminance Calculation**: Uses `max(max(r,g),b)` formula to calculate pixel luminance
+1. **Luminance Calculation**: Uses `min(min(r,g),b)` formula to calculate pixel luminance
 2. **Multi-level Reduction**: Reduces 1024x1024 sampling to 1x1 statistics through 5 stages of 4x4 reduction
 3. **History Buffer**: Uses 4x4 texture as a 16-frame circular buffer
 4. **Color Calibration**: Maps original image to screen displayable range
