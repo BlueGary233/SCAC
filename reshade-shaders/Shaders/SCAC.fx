@@ -12,16 +12,19 @@
  * 屏幕颜色自动校准
  * Screen Colour Automatic Calibration
  * by 灰灰蓝 948689673@qq.com WeChat Rs200215
- * version 0.06
+ * version 0.08
  * version 0.01 Create at 2025/12/13
  * TODO 添加亮度极值平滑系统。√
  * TODO 添加ui过滤。√
  * TODO 调整ui。√
  * version 0.04 Create at 2025/12/18
- * TODO 改进亮度极值平滑，使其不依赖历史值。
- * TODO 改进检测算法，使用单纹理以提高性能。
+ * TODO 改进亮度极值平滑，使其不依赖历史值。√
  * version 0.05 修复了UIFilter不生效的问题。
  * version 0.06 改进了亮度计算的算法。
+ * version 0.07 添加了GAMMA调整。
+ * version 0.08 删除了历史帧平滑算法，改为单帧平滑算法。
+ * version 0.08 Crate at 2025/12/19
+ * TODO 改进检测算法，使用单纹理或计算着色器以提高性能。
  */
 
 #include "ReShadeUI.fxh"
@@ -115,6 +118,15 @@ uniform float UiFilterWhite <
 	ui_tooltip = "滤除UI过亮像素的阈值/Threshold for filtering overly light UI pixels.";
 > = 100.0;
 
+uniform float3 RGBGamma <
+	ui_text = "明暗调整";
+	ui_type = "drag";
+	ui_min = 0.0; ui_max = 2.0;
+	ui_step = 0.001f;
+	ui_label = "Gamma";
+	ui_tooltip = "调整画面整体明暗/Adjust the overall brightness and contrast of the image.";
+> = 1.0;
+
 uniform bool ShowSamplingBorder <
     ui_category = "采样/Sampling";
 	ui_label = "Show Sampling Border";
@@ -147,13 +159,15 @@ uniform float2 CustomAreaSize <
 	ui_tooltip = "自定义采样区域的大小/Size of custom sampling area. 1.0 = default size (1024x1024 pixels).";
 > = float2(1.0, 1.0);
 
-uniform int HistorySmoothingAlgorithm <
+uniform int Smoothness <
 	ui_category = "Advance";
-	ui_type = "combo";
-	ui_label = "History Smoothing Algorithm";
-	ui_tooltip = "选择历史平滑算法/Select history smoothing algorithm.";
-	ui_items = "Off\0Preserve (Min/Max)\0Average (17-frame mean)\0";
-> = 2;
+	ui_type = "slider";
+	ui_label = "Smoothness";
+	ui_tooltip = "平滑度控制，值越大变化越平滑/Smoothness control, higher values result in smoother changes.";
+	ui_min = 1;
+	ui_max = 200;
+	ui_step = 1;
+> = 200;
 
 uniform bool EnableDebug <
 	ui_category = "Advance";
@@ -180,9 +194,16 @@ float3 ColorCalibration(float3 color,
 						float3 useingMinColor,
 						float3 useingMaxColor)
 {
-	// 应用自动调整限制
+	// 应用自动调整限制和ui滤除
     useingMaxColor = max(useingMaxColor, ScreenMax * WhiteLimiter);
 	useingMinColor = min(useingMinColor, ScreenMin + BlackLimiter);
+	color = clamp(color,UiFilterBlack,UiFilterWhite);
+
+	// 归一化color并应用gamma调整
+	color = (color - useingMinColor) / (useingMaxColor - useingMinColor);
+	color = clamp(color,0,1);
+	color = pow(color, 1.0 / RGBGamma);
+	color = color * (useingMaxColor - useingMinColor) + useingMinColor;
 
 	// 校准黑位和白位（合并为一步）
 	color = ScreenMin + (color - useingMinColor)* (ScreenMax - ScreenMin)
@@ -376,31 +397,12 @@ sampler2D SamplerMip5 {
     AddressV = Border;     // V方向寻址：边缘
 };
 
-// 纹理4_History：4x4 - 历史缓冲区（存储16帧历史的最大值和最小值）
-texture2D TextureMip4_History<
-	//storage = true;
->
-{
-	//storage2D = true;
-	Width = 4;
-	Height = 4;
-	Format = RGBA16F;
-};
-sampler2D SamplerMip4_History {
-	Texture = TextureMip4_History;
-	MinFilter = Point;    // 缩小过滤：点过滤
-    MagFilter = Point;    // 放大过滤：点过滤
-    MipFilter = Point;    // Mipmap过滤：点过滤
-    AddressU = Border;     // U方向寻址：边缘
-    AddressV = Border;     // V方向寻址：边缘
-};
-
 // ============================================================================
 // Pass着色器
 // ============================================================================
 
 // Pass 1：将后缓冲区采样到1024x1024并计算亮度
-float4 Pass1_DownsampleTo1024(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
+float4 pass0_DownsampleTo1024(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
 {
 	// 测试模式：输出测试图案以验证坐标映射
 	// R通道：水平渐变（0到1）
@@ -468,166 +470,65 @@ float4 Pass2_Reduction1(float4 position : SV_Position, float2 texcoord : TexCoor
 }
 
 // Pass 3：第二次4x4归约（256x256 -> 64x64）
-float4 Pass3_Reduction2(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
+float4 Pass2_Reduction2(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
 {
 	return ReductionPass(position, texcoord, SamplerMip1, 1.0 / 256.0);
 }
 
 // Pass 4：第三次4x4归约（64x64 -> 16x16）
-float4 Pass4_Reduction3(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
+float4 Pass3_Reduction3(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
 {
 	return ReductionPass(position, texcoord, SamplerMip2, 1.0 / 64.0);
 }
 
 // Pass 5：第四次4x4归约（16x16 -> 4x4）
-float4 Pass5_Reduction4(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
+float4 Pass4_Reduction5(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
 {
 	return ReductionPass(position, texcoord, SamplerMip3, 1.0 / 16.0);
 }
 
-// Pass 6：第五次4x4归约（4x4 -> 1x1）和历史平均值计算
-float4 Pass6_Reduction5(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
+// Pass 6：第五次4x4归约（4x4 -> 1x1）和平滑计算
+float4 Pass5_Reduction5(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
 {
 	// 执行正常的4x4归约
 	float4 result = ReductionPass(position, texcoord, SamplerMip4, 1.0 / 4.0);
 	
-	// 根据历史平滑算法进行计算
-	[branch]
-	if (HistorySmoothingAlgorithm == 0)
-	{
-		result.b = result.r;
-		result.a = result.g;
-	}
-	else if (HistorySmoothingAlgorithm == 1) // Preserve (Min/Max) 算法
-	{
-		// 从Mip4_History采样所有16个像素并计算历史值的极值
-		float2 pixelSize = 1.0 / 4.0; // 4x4纹理的像素大小
-		float2 startCoord = float2(0.5 * pixelSize.x, 0.5 * pixelSize.y); // 从第一个像素中心开始
-		
-		float historyMin = 0.0;
-		float historyMax = 0.0;
-		
-		for (int y = 0; y < 4; y++)
-		{
-			for (int x = 0; x < 4; x++)
-			{
-				float2 sampleCoord = startCoord + float2(x * pixelSize.x, y * pixelSize.y);
-				float4 mip4Value = tex2D(SamplerMip4_History, sampleCoord);
-				historyMin = min(historyMin, mip4Value.r);
-				historyMax = max(historyMax, mip4Value.g);
-			}
-		}
-		
-		// 添加当前帧值到结果中（result.r存储当前帧最小值，result.g存储当前帧最大值）
-		// 现在总共有17个数据：16个历史值 + 1个当前帧值
-		float totalMin = min(historyMin, result.r);
-		float totalMax = max(historyMax, result.g);
-
-		// 存储到结果的B和A通道中
-		result.b = totalMin;
-		result.a = totalMax;
-	}
-	else if (HistorySmoothingAlgorithm == 2) // Average (17-frame mean) 算法
-	{
-		float2 pixelSize = 1.0 / 4.0; // 4x4纹理的像素大小
-		float2 startCoord = float2(0.5 * pixelSize.x, 0.5 * pixelSize.y); // 从第一个像素中心开始
-		
-		float historyMinSum = 0.0;
-		float historyMaxSum = 0.0;
-		int sampleCount = 0;
-		
-		for (int y = 0; y < 4; y++)
-		{
-			for (int x = 0; x < 4; x++)
-			{
-				float2 sampleCoord = startCoord + float2(x * pixelSize.x, y * pixelSize.y);
-				float4 mip4Value = tex2D(SamplerMip4_History, sampleCoord);
-				historyMinSum += mip4Value.r;
-				historyMaxSum += mip4Value.g;
-				sampleCount++;
-			}
-		}
-		
-		// 添加当前帧值到累加和中
-		historyMinSum += result.r;
-		historyMaxSum += result.g;
-		sampleCount++; // 现在总共有17个样本
-		
-		// 计算平均值
-		float avgMin = historyMinSum / sampleCount;
-		float avgMax = historyMaxSum / sampleCount;
-		
-		// 存储到结果的B和A通道中
-		result.b = avgMin;
-		result.a = avgMax;
-	}
-	// 如果HistorySmoothingAlgorithm == 0 (Off)，则不进行历史平滑
+	// 读取上一帧的平滑值（从TextureMip5的B和A通道）
+	float4 prevFrame = tex2D(SamplerMip5, float2(0.5, 0.5));
+	float prevSmoothMin = prevFrame.b;
+	float prevSmoothMax = prevFrame.a;
+	
+	// 获取当前帧的最小值和最大值
+	float currentMin = result.r;
+	float currentMax = result.g;
+	
+	// 计算差值（考虑正负）
+	float diffMin = currentMin - prevSmoothMin;
+	float diffMax = currentMax - prevSmoothMax;
+	
+	// 计算平滑步长（1.0 / Smoothness）
+	float smoothStep = 0.1 / float(Smoothness);
+	
+	// 应用平滑公式：smoothResult = result + min(abs(diff), smoothStep) * sign(diff)
+	float smoothMin = prevSmoothMin + min(abs(diffMin), smoothStep) * sign(diffMin);
+	float smoothMax = prevSmoothMax + min(abs(diffMax), smoothStep) * sign(diffMax);
+	
+	// 写入结果：
+	// R通道：当前帧最小值
+	// G通道：当前帧最大值
+	// B通道：平滑后的最小值
+	// A通道：平滑后的最大值
+	result.r = currentMin;
+	result.g = currentMax;
+	result.b = smoothMin;
+	result.a = smoothMax;
 	
 	return result;
 }
 
-// Pass 7：将当前帧的1x1纹理值存储到历史纹理(0,0)
-float4 Pass7_StoreCurrentToHistory(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
-{
-	// 这个Pass只写入历史纹理的(0,0)位置
-	if (texcoord.x == 0.125 && texcoord.y == 0.125)
-	{
-		// 从1x1纹理读取当前帧的最小值和最大值
-		float4 currentFrame = tex2D(SamplerMip5, float2(0.5, 0.5));
-		
-		// 存储到历史纹理的(0,0)位置
-		// R通道：当前帧最小值
-		// G通道：当前帧最大值
-		// B和A通道：保留为0（后续用于平均值）
-		return float4(currentFrame.r, currentFrame.g, 0.0, 1.0);
-	}
 
-	// 其他位置：返回历史纹理的原像素值，保护历史数据不被破坏
-	float4 originalHistoryValue = tex2D(SamplerMip4_History, texcoord);
-	return originalHistoryValue;
-}
-
-// Pass 8：历史值移位
-float4 Pass8_HistoryShift(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
-{
-	// 这个Pass将历史纹理中的值向前移动一位
-	// 使用4x4纹理作为16帧的循环缓冲区
-	// 将二维坐标转换为一维[0,15]
-	
-	// 计算当前像素的行列索引（4x4纹理）
-	uint col = uint(texcoord.x * 4.0);
-	uint row = uint(texcoord.y * 4.0);
-	uint pixelIndex = row * 4 + col;
-	
-	// 计算前一个索引（循环缓冲区）
-	uint prevIndex;
-	if (pixelIndex == 0)
-	{
-		prevIndex = 15; // 循环到最后一个位置
-	}
-	else
-	{
-		prevIndex = pixelIndex - 1;
-	}
-	
-	// 将一维索引转换回二维纹理坐标
-	uint prevCol = prevIndex % 4;
-	uint prevRow = prevIndex / 4;
-	
-	// 计算前一个位置的纹理坐标（像素中心）
-	float2 prevTexcoord = float2(
-		prevCol * 0.25 + 0.125,
-		prevRow * 0.25 + 0.125
-	);
-	
-	// 读取前一个位置的值
-	float4 prevValue = tex2D(SamplerMip4_History, prevTexcoord);
-	
-	return prevValue;
-}
-
-// Pass 9：最终颜色校准
-float3 Pass9_FinalCalibration(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
+// Pass 6：最终颜色校准
+float3 Pass6_FinalCalibration(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
 {
 	// 检查校准模式
 	[branch]
@@ -678,65 +579,14 @@ float3 Pass9_FinalCalibration(float4 position : SV_Position, float2 texcoord : T
 	maxColor = max(maxColor, minColor + 0.001);
 	useingMaxColor = max(useingMaxColor,useingMinColor + 0.1);
 	
-	// 调试视图 - 显示历史纹理和规约纹理
+	// 调试视图 - 显示规约纹理
 	[branch]
 	if (EnableDebug)
 	{
-		// 左侧显示区域：显示3个历史相关纹理，每个占屏幕高度的1/3
-		float leftDisplaySize = BUFFER_HEIGHT / 3.0;
-		float leftDisplayWidth = leftDisplaySize;
-		float leftDisplayHeight = leftDisplaySize;
-		
 		// 右侧显示区域：显示6个规约纹理，每个占屏幕高度的1/6
 		float rightDisplaySize = BUFFER_HEIGHT / 6.0;
 		float rightDisplayWidth = rightDisplaySize;
 		float rightDisplayHeight = rightDisplaySize;
-		
-		// 检查当前像素是否在左侧显示区域内
-		if (x < leftDisplayWidth)
-		{
-			// 计算在左侧显示区域内的相对位置
-			uint displayX = x;
-			uint displayY = y;
-			
-			// 计算当前像素属于哪个历史纹理（0-2）
-			uint historyTextureIndex = displayY / (uint)leftDisplayHeight;
-			
-			// 确保纹理索引在0-2范围内
-			if (historyTextureIndex < 3)
-			{
-				// 计算在当前纹理显示区域内的相对位置（归一化到[0,1]）
-				float localY = (displayY % (uint)leftDisplayHeight) / leftDisplayHeight;
-				float localX = displayX / leftDisplayWidth;
-				
-				// 根据纹理索引采样对应的历史纹理
-				float4 historyValue;
-				if (historyTextureIndex == 0)
-				{
-					// TextureMip4_History: 4x4 - 完整图像（RGBA）
-					float2 mipCoord = float2(localX, localY);
-					historyValue = tex2D(SamplerMip4_History, mipCoord);
-					// 显示完整RGBA：R通道为红色，G通道为绿色，B通道为蓝色
-					return float3(historyValue.r, historyValue.g, historyValue.b);
-				}
-				else if (historyTextureIndex == 1)
-				{
-					// TextureMip4_History: R通道（历史最小值）
-					float2 mipCoord = float2(localX, localY);
-					historyValue = tex2D(SamplerMip4_History, mipCoord);
-					// 只显示R通道（红色）
-					return float3(historyValue.r, 0.0, 0.0);
-				}
-				else // historyTextureIndex == 2
-				{
-					// TextureMip4_History: G通道（历史最大值）
-					float2 mipCoord = float2(localX, localY);
-					historyValue = tex2D(SamplerMip4_History, mipCoord);
-					// 只显示G通道（绿色）
-					return float3(0.0, historyValue.g, 0.0);
-				}
-			}
-		}
 		
 		// 检查当前像素是否在屏幕右侧的显示区域内
 		if (x > BUFFER_WIDTH - rightDisplayWidth)
@@ -828,10 +678,10 @@ float3 Pass9_FinalCalibration(float4 position : SV_Position, float2 texcoord : T
 		}
 		else // 自定义模式
 		{
-			// 计算像素大小（与Pass1_DownsampleTo1024一致）
+			// 计算像素大小（与pass0_DownsampleTo1024一致）
 			float2 pixelSize = 1.0 / float2(BUFFER_WIDTH, BUFFER_HEIGHT);
 			
-			// 采样区域大小（与Pass1_DownsampleTo1024一致）
+			// 采样区域大小（与pass0_DownsampleTo1024一致）
 			float2 sampleSize = float2(1024*CustomAreaSize.x*pixelSize.x, 1024*CustomAreaSize.y*pixelSize.y);
 			float2 sampleCenter = CustomAreaCenter;
 			
@@ -895,65 +745,51 @@ float3 Pass9_FinalCalibration(float4 position : SV_Position, float2 texcoord : T
 
 technique SCAC
 {
-	pass Pass1_Downsample
+	pass Pass0_Downsample
 	{
 		VertexShader = PostProcessVS;
-		PixelShader = Pass1_DownsampleTo1024;
+		PixelShader = pass0_DownsampleTo1024;
 		RenderTarget = TextureMip0;
 	}
 	
-	pass Pass2_Reduction1
+	pass Pass1_Reduction1
 	{
 		VertexShader = PostProcessVS;
 		PixelShader = Pass2_Reduction1;
 		RenderTarget = TextureMip1;
 	}
 	
-	pass Pass3_Reduction2
+	pass Pass2_Reduction2
 	{
 		VertexShader = PostProcessVS;
-		PixelShader = Pass3_Reduction2;
+		PixelShader = Pass2_Reduction2;
 		RenderTarget = TextureMip2;
 	}
 	
-	pass Pass4_Reduction3
+	pass Pass3_Reduction3
 	{
 		VertexShader = PostProcessVS;
-		PixelShader = Pass4_Reduction3;
+		PixelShader = Pass3_Reduction3;
 		RenderTarget = TextureMip3;
 	}
 	
-	pass Pass5_Reduction4
+	pass Pass4_Reduction4
 	{
 		VertexShader = PostProcessVS;
-		PixelShader = Pass5_Reduction4;
+		PixelShader = Pass4_Reduction5;
 		RenderTarget = TextureMip4;
 	}
 	
-	pass Pass6_Reduction5
+	pass Pass5_Reduction5
 	{
 		VertexShader = PostProcessVS;
-		PixelShader = Pass6_Reduction5;
+		PixelShader = Pass5_Reduction5;
 		RenderTarget = TextureMip5;
 	}
-
-	pass Pass7_StoreCurrentToHistory
-	{
-		VertexShader = PostProcessVS;
-		PixelShader = Pass7_StoreCurrentToHistory;
-		RenderTarget = TextureMip4_History;
-	}
 	
-	pass Pass8_HistoryShift
+	pass Pass6_Final
 	{
 		VertexShader = PostProcessVS;
-		PixelShader = Pass8_HistoryShift;
-		RenderTarget = TextureMip4_History;
-	}
-	
-	pass Pass9_Final
-	{
-		VertexShader = PostProcessVS;
-		PixelShader = Pass9_FinalCalibration;
+		PixelShader = Pass6_FinalCalibration;
 	}
 }
