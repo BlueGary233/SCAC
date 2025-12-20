@@ -24,10 +24,20 @@
  * version 0.07 添加了GAMMA调整。
  * version 0.08 删除了历史帧平滑算法，改为单帧平滑算法。
  * version 0.08 Crate at 2025/12/19
+ * version 0.09 修改一些默认值和ui布局。
  * TODO 改进检测算法，使用单纹理或计算着色器以提高性能。
  */
 
 #include "ReShadeUI.fxh"
+
+uniform float3 RGBGamma <
+	ui_text = "明暗调整";
+	ui_type = "slider";
+	ui_min = 0.0; ui_max = 2.0;
+	ui_step = 0.001f;
+	ui_label = "Gamma";
+	ui_tooltip = "调整画面整体明暗/Adjust the overall brightness and contrast of the image.";
+> = 1.0;
 
 uniform int CalibrationMode <
 	ui_category = "屏幕校准/Screen calibration";
@@ -74,7 +84,7 @@ uniform float WhiteLimiter <
 	ui_step = 0.01f;
 	ui_label = "Min White Limiter";
 	ui_tooltip = "限制检测到的原始最高亮度，避免阴暗画面过亮/Limit the detected maximum raw brightness to prevent overly bright in dim image";
-> = 0.95;
+> = 0.85;
 
 uniform float BlackLimiter <
 	ui_text = "最大黑位限制（为1时无限制/Unlimited for 1）";
@@ -84,7 +94,7 @@ uniform float BlackLimiter <
 	ui_step = 0.01f;
 	ui_label = "Max Black Limiter";
 	ui_tooltip = "限制检测到的原始最低亮度，避免将灰色校准成黑色/Limit the detected raw minimum brightness to avoid calibrating grey as black";
-> = 0.10;
+> = 0.15;
 
 uniform bool EnableUIFilter <
 	ui_category = "UI过滤/UI filter";
@@ -106,7 +116,7 @@ uniform float UiFilterBlack <
 	ui_step = 0.000001f;
 	ui_label = "UI Filter Black Level";
 	ui_tooltip = "滤除UI过暗像素的阈值/Threshold for filtering overly dark UI pixels.";
-> = 0.0;
+> = 0.00001;
 
 uniform float UiFilterWhite <
 	ui_text = "ui亮色过滤";
@@ -117,15 +127,6 @@ uniform float UiFilterWhite <
 	ui_label = "UI Filter White Level";
 	ui_tooltip = "滤除UI过亮像素的阈值/Threshold for filtering overly light UI pixels.";
 > = 100.0;
-
-uniform float3 RGBGamma <
-	ui_text = "明暗调整";
-	ui_type = "drag";
-	ui_min = 0.0; ui_max = 2.0;
-	ui_step = 0.001f;
-	ui_label = "Gamma";
-	ui_tooltip = "调整画面整体明暗/Adjust the overall brightness and contrast of the image.";
-> = 1.0;
 
 uniform bool ShowSamplingBorder <
     ui_category = "采样/Sampling";
