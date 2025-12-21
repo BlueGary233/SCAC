@@ -182,10 +182,15 @@ uniform bool EnableDebug <
 // 辅助函数
 // ============================================================================
 
-// 计算像素亮度：min(min(r,g),b) - 单通道简化,min确保黑位准确和画面稳定。
-float CalculateLuminance(float3 color)
+// 计算像素亮度：min(min(r,g),b) - 单通道简化,min确保亮处稳定，max确保黑位准确。
+float MinLuminance(float3 color)
 {
 	return min(min(color.r, color.g), color.b);//(color.r + color.g + color.b)/3;
+}
+
+float MaxLuminance(float3 color)
+{
+	return max(max(color.r, color.g), color.b);
 }
 
 // 颜色校准函数 - 支持scRGB/HDR
@@ -446,14 +451,16 @@ float4 pass0_DownsampleTo1024(float4 position : SV_Position, float2 texcoord : T
 	float3 color = tex2D(ReShade::BackBuffer, sampleCoord).rgb;
 	
 	// 计算亮度（单通道）
-	float luminance = CalculateLuminance(color);
+	float minLuminance = MinLuminance(color);// 用于最大值校准
+	float maxLuminance = MaxLuminance(color);// 用于最小值校准
 
 	// UI滤除（如果启用）
 	[branch]
 	if (EnableUIFilter)
 	{
 		// 应用滤除
-		luminance = clamp(luminance,UiFilterBlack,UiFilterWhite);
+		minLuminance = min(minLuminance,UiFilterWhite);
+		maxLuminance = max(maxLuminance,UiFilterBlack);
 		/*
 		luminance += (luminance < UiFilterBlack) * UiFilterBlack;
 		Luminance -= (Luminance > UiFilterWhite) * UiFilterWhite;
@@ -461,7 +468,7 @@ float4 pass0_DownsampleTo1024(float4 position : SV_Position, float2 texcoord : T
 	}
 	
 	// 存储到TextureMip0（R通道存亮度，G通道存相同值用于后续处理）
-	return float4(luminance, luminance, 0.0, 1.0);
+	return float4(maxLuminance, minLuminance, 0.0, 1.0);
 }
 
 // Pass 2：第一次4x4归约（1024x1024 -> 256x256）
@@ -542,16 +549,18 @@ float3 Pass6_FinalCalibration(float4 position : SV_Position, float2 texcoord : T
 	// 从后缓冲区采样
 	float3 color = tex2D(ReShade::BackBuffer, texcoord).rgb;
 	
-	float luminance = CalculateLuminance(color);
+
 	[branch]
 	if (ShowFilterEffect)
 	{
+		float minLuminance = MinLuminance(color);
+		float maxLuminance = MaxLuminance(color);
 		// 找到被滤除的像素
-		if (luminance < UiFilterBlack)
+		if (maxLuminance < UiFilterBlack)
 		{
 			color = float3(0,0,1);
 		}
-		else if (luminance > UiFilterWhite)
+		else if (minLuminance > UiFilterWhite)
 		{
 			color = float3(1,0,0);
 		}
