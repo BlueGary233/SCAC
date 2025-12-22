@@ -26,6 +26,7 @@
  * version 0.08 Crate at 2025/12/19
  * version 0.09 修改一些默认值和ui布局。
  * TODO 改进检测算法，使用单纹理或计算着色器以提高性能。
+ * version 0.0.10 改进了亮度计算算法，最大值和最小值分开获得亮度
  */
 
 #include "ReShadeUI.fxh"
