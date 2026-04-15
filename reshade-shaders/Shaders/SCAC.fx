@@ -435,14 +435,24 @@ float4 pass0_DownsampleTo1024(float4 position : SV_Position, float2 texcoord : T
 	}
 	else // 自定义模式 (SamplingAera == 1)
 	{
-		// 采样区域
-		float2 sampleSize = float2(1024*CustomAreaSize.x*pixelSize.x, 1024*CustomAreaSize.y*pixelSize.y);
+        // 采样区域的尺寸（以屏幕像素为单位）
+        float2 sampleSizePixels = float2(1024.0 * CustomAreaSize.x, 1024.0 * CustomAreaSize.y);
 		
-		float2 sampleCenter = CustomAreaCenter;
+        // 采样区域的中心（以屏幕UV为单位，[0,1]范围）
+        float2 sampleCenterUV = CustomAreaCenter;
 		
 		// 将1024x1024纹理坐标映射到自定义区域
-		// 公式：中心 + (texcoord - 0.5) * 大小
-		sampleCoord = sampleCenter + (texcoord - 0.5) * sampleSize;
+        // 计算当前输出纹素在区域内的归一化位置 [0,1]
+        float2 localUV = texcoord; // texcoord 在 0~1 之间
+        
+        // 计算该纹素对应的屏幕像素索引（浮点，可能带小数）
+        float2 pixelIndexFloat = (sampleCenterUV - 0.5 * sampleSizePixels * pixelSize) + localUV * sampleSizePixels * pixelSize;
+        pixelIndexFloat /= pixelSize; // 现在单位是像素索引
+        
+        // 对齐到最近的像素中心：取整后加0.5得到像素中心坐标
+        int2 pixelIndex = int2(floor(pixelIndexFloat + 0.5)); // 四舍五入取整
+        // 转换为像素中心UV坐标
+        sampleCoord = (float2(pixelIndex) + 0.5) * pixelSize;
 	}
 	
 	// 注意：这里不需要clamp，因为AddressU = Border; AddressV = Border;
