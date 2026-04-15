@@ -161,15 +161,35 @@ uniform float2 CustomAreaSize <
 	ui_tooltip = "自定义采样区域的大小/Size of custom sampling area. 1.0 = default size (1024x1024 pixels).";
 > = float2(1.0, 1.0);
 
-uniform int Smoothness <
+uniform float SmoothStep <
+    ui_text = "平滑步长";
 	ui_category = "Advance";
 	ui_type = "slider";
-	ui_label = "Smoothness";
-	ui_tooltip = "平滑度控制，值越大变化越平滑/Smoothness control, higher values result in smoother changes.";
-	ui_min = 1;
-	ui_max = 200;
+	ui_label = "Smooth Step";
+	ui_tooltip = "平滑步长控制，值越大变化越不平滑/Smooth step control, larger value means less smooth change.";
+	ui_min = 0.0005; ui_max = 1.0;
+	ui_step = 0.0001f;
+> = 0.0005;
+
+uniform int SmoothFram <
+    ui_text = "曝光响应时间";
+	ui_category = "Advance";
+	ui_type = "slider";
+	ui_label = "Exposure Response Time";
+	ui_tooltip = "影响平滑算法中慢速响应部分的速度。值越大，曝光变化越慢/Affects the speed of the slow response part in the smoothing algorithm. Larger value means slower exposure change.";
+	ui_min = 1; ui_max = 60;
 	ui_step = 1;
-> = 200;
+> = 20;
+
+uniform float SmoothMult <
+    ui_text = "曝光速度";
+	ui_category = "Advance";
+	ui_type = "slider";
+	ui_label = "exposure speed";
+	ui_tooltip = "影响平滑算法中快速响应部分的速度。值越大，曝光变化越快/Affects the speed of the fast response part in the smoothing algorithm. Larger value means faster exposure change.";
+	ui_min = 0.0; ui_max = 0.1;
+	ui_step = 0.001f;
+> = 0.015;
 
 uniform bool EnableDebug <
 	ui_category = "Advance";
@@ -524,13 +544,25 @@ float4 Pass5_Reduction5(float4 position : SV_Position, float2 texcoord : TexCoor
 	// 计算差值（考虑正负）
 	float diffMin = currentMin - prevSmoothMin;
 	float diffMax = currentMax - prevSmoothMax;
+
+	// 应用改进的平滑公式：分段平滑算法
+	// 当 |diff| > SmoothFram * SmoothStep 时：使用 diff * SmoothMult
+	// 当 |diff| <= SmoothFram * SmoothStep 时：使用 min(abs(diff), SmoothStep) * sign(diff)
+	float threshold = SmoothFram * SmoothStep;
 	
-	// 计算平滑步长（1.0 / Smoothness）
-	float smoothStep = 0.1 / float(Smoothness);
+	// 最小值平滑（无分支实现）
+	float isLargeChangeMin = step(threshold, abs(diffMin));
+	float smallChangeMin = min(abs(diffMin), SmoothStep) * sign(diffMin);
+	float largeChangeMin = diffMin * SmoothMult;
+	float changeMin = lerp(smallChangeMin, largeChangeMin, isLargeChangeMin);
+	float smoothMin = prevSmoothMin + changeMin;
 	
-	// 应用平滑公式：smoothResult = result + min(abs(diff), smoothStep) * sign(diff)
-	float smoothMin = prevSmoothMin + min(abs(diffMin), smoothStep) * sign(diffMin);
-	float smoothMax = prevSmoothMax + min(abs(diffMax), smoothStep) * sign(diffMax);
+	// 最大值平滑（无分支实现）
+	float isLargeChangeMax = step(threshold, abs(diffMax));
+	float smallChangeMax = min(abs(diffMax), SmoothStep) * sign(diffMax);
+	float largeChangeMax = diffMax * SmoothMult;
+	float changeMax = lerp(smallChangeMax, largeChangeMax, isLargeChangeMax);
+	float smoothMax = prevSmoothMax + changeMax;
 	
 	// 写入结果：
 	// R通道：当前帧最小值
