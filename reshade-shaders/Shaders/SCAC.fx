@@ -26,6 +26,9 @@
  * version 0.08 Crate at 2025/12/19
  * version 0.09 修改一些默认值和ui布局。
  * version 0.0.10 改进了亮度计算算法，最大值和最小值分开获得亮度
+ * version 0.1.0 添加了反应更快的平滑算法
+ * version 0.1.0 Create at 2026/04/15
+ * version 0.1.1 添加额外ui过滤矩形，修复代码依靠bug运行的问题
  * TODO 改进检测算法，使用单纹理或计算着色器以提高性能。
  */
 
@@ -129,6 +132,200 @@ uniform float UiFilterWhite <
 	ui_tooltip = "滤除UI过亮像素的阈值/Threshold for filtering overly light UI pixels.";
 > = 100.0;
 
+// ============================================================================
+// UI剔除矩形
+// ============================================================================
+
+uniform bool ShowRectBorder <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_label = "显示矩形边框/Show Rectangle Borders";
+	ui_tooltip = "在屏幕上显示UI剔除矩形的边框/Display UI exclusion rectangle borders on screen.";
+> = false;
+
+// 矩形0
+uniform bool RectEnable0 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_label = "矩形0 启用/Rectangle 0 Enable";
+	ui_tooltip = "启用矩形0的UI剔除/Enable UI exclusion for rectangle 0.";
+> = false;
+
+uniform float2 RectPos0 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_type = "slider";
+	ui_min = 0.0; ui_max = 1.0;
+	ui_label = "矩形0 位置/Rectangle 0 Position";
+	ui_tooltip = "矩形0的左上角位置（归一化坐标）/Top-left position of rectangle 0 (normalized coordinates).";
+> = float2(0.45, 0.45);
+
+uniform float2 RectSize0 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_type = "slider";
+	ui_min = 0.0; ui_max = 1.0;
+	ui_label = "矩形0 大小/Rectangle 0 Size";
+	ui_tooltip = "矩形0的大小（归一化尺寸）/Size of rectangle 0 (normalized size).";
+> = float2(0.1, 0.1);
+
+// 矩形1
+uniform bool RectEnable1 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_label = "矩形1 启用/Rectangle 1 Enable";
+	ui_tooltip = "启用矩形1的UI剔除/Enable UI exclusion for rectangle 1.";
+> = false;
+
+uniform float2 RectPos1 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_type = "slider";
+	ui_min = 0.0; ui_max = 1.0;
+	ui_label = "矩形1 位置/Rectangle 1 Position";
+	ui_tooltip = "矩形1的左上角位置（归一化坐标）/Top-left position of rectangle 1 (normalized coordinates).";
+> = float2(0.25, 0.25);
+
+uniform float2 RectSize1 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_type = "slider";
+	ui_min = 0.0; ui_max = 1.0;
+	ui_label = "矩形1 大小/Rectangle 1 Size";
+	ui_tooltip = "矩形1的大小（归一化尺寸）/Size of rectangle 1 (normalized size).";
+> = float2(0.1, 0.1);
+
+// 矩形2
+uniform bool RectEnable2 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_label = "矩形2 启用/Rectangle 2 Enable";
+	ui_tooltip = "启用矩形2的UI剔除/Enable UI exclusion for rectangle 2.";
+> = false;
+
+uniform float2 RectPos2 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_type = "slider";
+	ui_min = 0.0; ui_max = 1.0;
+	ui_label = "矩形2 位置/Rectangle 2 Position";
+	ui_tooltip = "矩形2的左上角位置（归一化坐标）/Top-left position of rectangle 2 (normalized coordinates).";
+> = float2(0.65, 0.25);
+
+uniform float2 RectSize2 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_type = "slider";
+	ui_min = 0.0; ui_max = 1.0;
+	ui_label = "矩形2 大小/Rectangle 2 Size";
+	ui_tooltip = "矩形2的大小（归一化尺寸）/Size of rectangle 2 (normalized size).";
+> = float2(0.1, 0.1);
+
+// 矩形3
+uniform bool RectEnable3 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_label = "矩形3 启用/Rectangle 3 Enable";
+	ui_tooltip = "启用矩形3的UI剔除/Enable UI exclusion for rectangle 3.";
+> = false;
+
+uniform float2 RectPos3 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_type = "slider";
+	ui_min = 0.0; ui_max = 1.0;
+	ui_label = "矩形3 位置/Rectangle 3 Position";
+	ui_tooltip = "矩形3的左上角位置（归一化坐标）/Top-left position of rectangle 3 (normalized coordinates).";
+> = float2(0.25, 0.65);
+
+uniform float2 RectSize3 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_type = "slider";
+	ui_min = 0.0; ui_max = 1.0;
+	ui_label = "矩形3 大小/Rectangle 3 Size";
+	ui_tooltip = "矩形3的大小（归一化尺寸）/Size of rectangle 3 (normalized size).";
+> = float2(0.1, 0.1);
+
+// 矩形4
+uniform bool RectEnable4 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_label = "矩形4 启用/Rectangle 4 Enable";
+	ui_tooltip = "启用矩形4的UI剔除/Enable UI exclusion for rectangle 4.";
+> = false;
+
+uniform float2 RectPos4 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_type = "slider";
+	ui_min = 0.0; ui_max = 1.0;
+	ui_label = "矩形4 位置/Rectangle 4 Position";
+	ui_tooltip = "矩形4的左上角位置（归一化坐标）/Top-left position of rectangle 4 (normalized coordinates).";
+> = float2(0.65, 0.65);
+
+uniform float2 RectSize4 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_type = "slider";
+	ui_min = 0.0; ui_max = 1.0;
+	ui_label = "矩形4 大小/Rectangle 4 Size";
+	ui_tooltip = "矩形4的大小（归一化尺寸）/Size of rectangle 4 (normalized size).";
+> = float2(0.1, 0.1);
+
+// 矩形5
+uniform bool RectEnable5 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_label = "矩形5 启用/Rectangle 5 Enable";
+	ui_tooltip = "启用矩形5的UI剔除/Enable UI exclusion for rectangle 5.";
+> = false;
+
+uniform float2 RectPos5 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_type = "slider";
+	ui_min = 0.0; ui_max = 1.0;
+	ui_label = "矩形5 位置/Rectangle 5 Position";
+	ui_tooltip = "矩形5的左上角位置（归一化坐标）/Top-left position of rectangle 5 (normalized coordinates).";
+> = float2(0.15, 0.45);
+
+uniform float2 RectSize5 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_type = "slider";
+	ui_min = 0.0; ui_max = 1.0;
+	ui_label = "矩形5 大小/Rectangle 5 Size";
+	ui_tooltip = "矩形5的大小（归一化尺寸）/Size of rectangle 5 (normalized size).";
+> = float2(0.1, 0.1);
+
+// 矩形6
+uniform bool RectEnable6 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_label = "矩形6 启用/Rectangle 6 Enable";
+	ui_tooltip = "启用矩形6的UI剔除/Enable UI exclusion for rectangle 6.";
+> = false;
+
+uniform float2 RectPos6 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_type = "slider";
+	ui_min = 0.0; ui_max = 1.0;
+	ui_label = "矩形6 位置/Rectangle 6 Position";
+	ui_tooltip = "矩形6的左上角位置（归一化坐标）/Top-left position of rectangle 6 (normalized coordinates).";
+> = float2(0.45, 0.15);
+
+uniform float2 RectSize6 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_type = "slider";
+	ui_min = 0.0; ui_max = 1.0;
+	ui_label = "矩形6 大小/Rectangle 6 Size";
+	ui_tooltip = "矩形6的大小（归一化尺寸）/Size of rectangle 6 (normalized size).";
+> = float2(0.1, 0.1);
+
+// 矩形7
+uniform bool RectEnable7 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_label = "矩形7 启用/Rectangle 7 Enable";
+	ui_tooltip = "启用矩形7的UI剔除/Enable UI exclusion for rectangle 7.";
+> = false;
+
+uniform float2 RectPos7 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_type = "slider";
+	ui_min = 0.0; ui_max = 1.0;
+	ui_label = "矩形7 位置/Rectangle 7 Position";
+	ui_tooltip = "矩形7的左上角位置（归一化坐标）/Top-left position of rectangle 7 (normalized coordinates).";
+> = float2(0.45, 0.75);
+
+uniform float2 RectSize7 <
+	ui_category = "UI剔除矩形/UI Exclusion Rectangles";
+	ui_type = "slider";
+	ui_min = 0.0; ui_max = 1.0;
+	ui_label = "矩形7 大小/Rectangle 7 Size";
+	ui_tooltip = "矩形7的大小（归一化尺寸）/Size of rectangle 7 (normalized size).";
+> = float2(0.1, 0.1);
+
 uniform bool ShowSamplingBorder <
     ui_category = "采样/Sampling";
 	ui_label = "Show Sampling Border";
@@ -206,7 +403,7 @@ uniform bool EnableDebug <
 // 计算像素亮度：min(min(r,g),b) - 单通道简化,min确保亮处稳定，max确保黑位准确。
 float MinLuminance(float3 color)
 {
-	return min(min(color.r, color.g), color.b);//(color.r + color.g + color.b)/3;
+	return min(min(color.r, color.g), color.b);
 }
 
 float MaxLuminance(float3 color)
@@ -214,27 +411,213 @@ float MaxLuminance(float3 color)
 	return max(max(color.r, color.g), color.b);
 }
 
+// 检查是否在矩形边框内
+bool IsInRectBorder(float2 normalizedCoord, float2 rectPos, float2 rectSize, float borderWidthX, float borderWidthY)
+{
+	float2 rectMin = rectPos; // 左上角位置
+	float2 rectMax = rectPos + rectSize; // 右下角位置
+	
+	// 检查左边界
+	if (normalizedCoord.x >= rectMin.x && normalizedCoord.x <= rectMin.x + borderWidthX &&
+		normalizedCoord.y >= rectMin.y && normalizedCoord.y <= rectMax.y)
+	{
+		return true;
+	}
+	// 检查右边界
+	if (normalizedCoord.x >= rectMax.x - borderWidthX && normalizedCoord.x <= rectMax.x &&
+		normalizedCoord.y >= rectMin.y && normalizedCoord.y <= rectMax.y)
+	{
+		return true;
+	}
+	// 检查上边界
+	if (normalizedCoord.y >= rectMin.y && normalizedCoord.y <= rectMin.y + borderWidthY &&
+		normalizedCoord.x >= rectMin.x && normalizedCoord.x <= rectMax.x)
+	{
+		return true;
+	}
+	// 检查下边界
+	if (normalizedCoord.y >= rectMax.y - borderWidthY && normalizedCoord.y <= rectMax.y &&
+		normalizedCoord.x >= rectMin.x && normalizedCoord.x <= rectMax.x)
+	{
+		return true;
+	}
+	
+	return false;
+}
+
+// 检查点是否在任何启用的矩形内，并返回左边缘坐标
+bool IsInAnyExclusionRect(float2 normalizedCoord, out float2 leftEdgeCoord)
+{
+	leftEdgeCoord = float2(0, 0);
+	
+	// 矩形0
+	if (RectEnable0)
+	{
+		float2 rectMin = RectPos0;
+		float2 rectMax = RectPos0 + RectSize0;
+		if (normalizedCoord.x >= rectMin.x && normalizedCoord.x <= rectMax.x &&
+			normalizedCoord.y >= rectMin.y && normalizedCoord.y <= rectMax.y)
+		{
+			leftEdgeCoord = float2(rectMin.x, normalizedCoord.y);
+			return true;
+		}
+	}
+	
+	// 矩形1
+	if (RectEnable1)
+	{
+		float2 rectMin = RectPos1;
+		float2 rectMax = RectPos1 + RectSize1;
+		if (normalizedCoord.x >= rectMin.x && normalizedCoord.x <= rectMax.x &&
+			normalizedCoord.y >= rectMin.y && normalizedCoord.y <= rectMax.y)
+		{
+			leftEdgeCoord = float2(rectMin.x, normalizedCoord.y);
+			return true;
+		}
+	}
+	
+	// 矩形2
+	if (RectEnable2)
+	{
+		float2 rectMin = RectPos2;
+		float2 rectMax = RectPos2 + RectSize2;
+		if (normalizedCoord.x >= rectMin.x && normalizedCoord.x <= rectMax.x &&
+			normalizedCoord.y >= rectMin.y && normalizedCoord.y <= rectMax.y)
+		{
+			leftEdgeCoord = float2(rectMin.x, normalizedCoord.y);
+			return true;
+		}
+	}
+	
+	// 矩形3
+	if (RectEnable3)
+	{
+		float2 rectMin = RectPos3;
+		float2 rectMax = RectPos3 + RectSize3;
+		if (normalizedCoord.x >= rectMin.x && normalizedCoord.x <= rectMax.x &&
+			normalizedCoord.y >= rectMin.y && normalizedCoord.y <= rectMax.y)
+		{
+			leftEdgeCoord = float2(rectMin.x, normalizedCoord.y);
+			return true;
+		}
+	}
+	
+	// 矩形4
+	if (RectEnable4)
+	{
+		float2 rectMin = RectPos4;
+		float2 rectMax = RectPos4 + RectSize4;
+		if (normalizedCoord.x >= rectMin.x && normalizedCoord.x <= rectMax.x &&
+			normalizedCoord.y >= rectMin.y && normalizedCoord.y <= rectMax.y)
+		{
+			leftEdgeCoord = float2(rectMin.x, normalizedCoord.y);
+			return true;
+		}
+	}
+	
+	// 矩形5
+	if (RectEnable5)
+	{
+		float2 rectMin = RectPos5;
+		float2 rectMax = RectPos5 + RectSize5;
+		if (normalizedCoord.x >= rectMin.x && normalizedCoord.x <= rectMax.x &&
+			normalizedCoord.y >= rectMin.y && normalizedCoord.y <= rectMax.y)
+		{
+			leftEdgeCoord = float2(rectMin.x, normalizedCoord.y);
+			return true;
+		}
+	}
+	
+	// 矩形6
+	if (RectEnable6)
+	{
+		float2 rectMin = RectPos6;
+		float2 rectMax = RectPos6 + RectSize6;
+		if (normalizedCoord.x >= rectMin.x && normalizedCoord.x <= rectMax.x &&
+			normalizedCoord.y >= rectMin.y && normalizedCoord.y <= rectMax.y)
+		{
+			leftEdgeCoord = float2(rectMin.x, normalizedCoord.y);
+			return true;
+		}
+	}
+	
+	// 矩形7
+	if (RectEnable7)
+	{
+		float2 rectMin = RectPos7;
+		float2 rectMax = RectPos7 + RectSize7;
+		if (normalizedCoord.x >= rectMin.x && normalizedCoord.x <= rectMax.x &&
+			normalizedCoord.y >= rectMin.y && normalizedCoord.y <= rectMax.y)
+		{
+			leftEdgeCoord = float2(rectMin.x, normalizedCoord.y);
+			return true;
+		}
+	}
+	
+	return false;
+}
+
+// 检查点是否在任何启用的矩形边框内
+bool IsInAnyRectBorder(float2 normalizedCoord, float borderWidthX, float borderWidthY)
+{
+	// 检查8个矩形
+	if (RectEnable0 && IsInRectBorder(normalizedCoord, RectPos0, RectSize0, borderWidthX, borderWidthY))
+	{
+		return true;
+	}
+	if (RectEnable1 && IsInRectBorder(normalizedCoord, RectPos1, RectSize1, borderWidthX, borderWidthY))
+	{
+		return true;
+	}
+	if (RectEnable2 && IsInRectBorder(normalizedCoord, RectPos2, RectSize2, borderWidthX, borderWidthY))
+	{
+		return true;
+	}
+	if (RectEnable3 && IsInRectBorder(normalizedCoord, RectPos3, RectSize3, borderWidthX, borderWidthY))
+	{
+		return true;
+	}
+	if (RectEnable4 && IsInRectBorder(normalizedCoord, RectPos4, RectSize4, borderWidthX, borderWidthY))
+	{
+		return true;
+	}
+	if (RectEnable5 && IsInRectBorder(normalizedCoord, RectPos5, RectSize5, borderWidthX, borderWidthY))
+	{
+		return true;
+	}
+	if (RectEnable6 && IsInRectBorder(normalizedCoord, RectPos6, RectSize6, borderWidthX, borderWidthY))
+	{
+		return true;
+	}
+	if (RectEnable7 && IsInRectBorder(normalizedCoord, RectPos7, RectSize7, borderWidthX, borderWidthY))
+	{
+		return true;
+	}
+	
+	return false;
+}
+
 // 颜色校准函数 - 支持scRGB/HDR
 float3 ColorCalibration(float3 color,
 						float3 minColor,
 						float3 maxColor,
-						float3 useingMinColor,
-						float3 useingMaxColor)
+						float3 usingMinColor,
+						float3 usingMaxColor)
 {
-	// 应用自动调整限制和ui滤除
-    useingMaxColor = max(useingMaxColor, ScreenMax * WhiteLimiter);
-	useingMinColor = min(useingMinColor, ScreenMin + BlackLimiter);
+	// 应用自动调整限制
+    usingMaxColor = max(usingMaxColor, ScreenMax * WhiteLimiter);
+	usingMinColor = min(usingMinColor, ScreenMin + BlackLimiter);
 	color = clamp(color,UiFilterBlack,UiFilterWhite);
 
 	// 归一化color并应用gamma调整
-	color = (color - useingMinColor) / (useingMaxColor - useingMinColor);
+	color = (color - usingMinColor) / (usingMaxColor - usingMinColor);
 	color = clamp(color,0,1);
 	color = pow(color, 1.0 / RGBGamma);
-	color = color * (useingMaxColor - useingMinColor) + useingMinColor;
+	color = color * (usingMaxColor - usingMinColor) + usingMinColor;
 
 	// 校准黑位和白位（合并为一步）
-	color = ScreenMin + (color - useingMinColor)* (ScreenMax - ScreenMin)
-			/ (useingMaxColor - useingMinColor);
+	color = ScreenMin + (color - usingMinColor)* (ScreenMax - ScreenMin)
+			/ (usingMaxColor - usingMinColor);
 
     return color;
 }
@@ -298,8 +681,6 @@ float4 ReductionPass(float4 position : SV_Position, float2 texcoord : TexCoord, 
 		for (int x = 0; x < 4; x++)
 		{
 			float2 sampleCoord = startCoord + float2(x * pixelSize.x, y * pixelSize.y);
-			// 确保采样坐标在有效范围内
-			// sampleCoord = clamp(sampleCoord, pixelSize * 0.5, 1.0 - pixelSize * 0.5);注释掉因为这个clamp似乎并不必要
 			float4 sampleVal = tex2D(inputSampler, sampleCoord);
 			
 			minVal = min(minVal, sampleVal.r);
@@ -424,6 +805,23 @@ sampler2D SamplerMip5 {
     AddressV = Border;     // V方向寻址：边缘
 };
 
+// 纹理6：1x1 - 存储上次帧的结果
+texture2D TexturePrev5 <
+	pooled = true;
+>
+{
+	Width = 1;
+	Height = 1;
+	Format = RGBA16F;
+};
+sampler2D SamplerPrev5 {
+	Texture = TexturePrev5;
+	MinFilter = Point;    // 缩小过滤：点过滤
+    MagFilter = Point;    // 放大过滤：点过滤
+    MipFilter = Point;    // Mipmap过滤：点过滤
+    AddressU = Border;     // U方向寻址：边缘
+    AddressV = Border;     // V方向寻址：边缘
+};
 // ============================================================================
 // Pass着色器
 // ============================================================================
@@ -431,17 +829,6 @@ sampler2D SamplerMip5 {
 // Pass 1：将后缓冲区采样到1024x1024并计算亮度
 float4 pass0_DownsampleTo1024(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
 {
-	// 测试模式：输出测试图案以验证坐标映射
-	// R通道：水平渐变（0到1）
-	// G通道：垂直渐变（0到1）
-	// B通道：固定0
-	// 这样我们可以清楚地看到纹理是否覆盖整个区域
-	
-	// float2 testPattern = texcoord; // 直接使用texcoord作为渐变
-	
-	// 存储到TextureMip0（R通道存水平渐变，G通道存垂直渐变）
-	// return float4(testPattern.x, testPattern.y, 0.0, 1.0);
-	
 	// 计算像素大小（用于边界检查）
 	float2 pixelSize = 1.0 / float2(BUFFER_WIDTH, BUFFER_HEIGHT);
 	
@@ -481,22 +868,29 @@ float4 pass0_DownsampleTo1024(float4 position : SV_Position, float2 texcoord : T
 	// 从后缓冲区采样RGB值（使用Point过滤直接采样）
 	float3 color = tex2D(ReShade::BackBuffer, sampleCoord).rgb;
 	
+	// 检查当前采样点是否在UI剔除矩形内
+	// 使用归一化坐标进行检查
+	float2 normalizedCoord = sampleCoord;
+	
+	// 检查是否在任何启用的矩形内
+	float2 leftEdgeCoord;
+	bool inExclusionRect = IsInAnyExclusionRect(normalizedCoord, leftEdgeCoord);
+	
+	// 如果在UI剔除矩形内，使用左边缘颜色
+	if (inExclusionRect)
+	{
+		// 亚像素对齐：将左边缘坐标对齐到最近的像素中心
+		float2 bufferSize = float2(BUFFER_WIDTH, BUFFER_HEIGHT);
+		float2 pixelIndex = floor(leftEdgeCoord * bufferSize + 0.5);
+		float2 alignedCoord = (pixelIndex + 0.5) / bufferSize;
+		
+		// 采样左边缘颜色
+		color = tex2D(ReShade::BackBuffer, alignedCoord).rgb;
+	}
+	
 	// 计算亮度（单通道）
 	float minLuminance = MinLuminance(color);// 用于最大值校准
 	float maxLuminance = MaxLuminance(color);// 用于最小值校准
-
-	// UI滤除（如果启用）
-	[branch]
-	if (EnableUIFilter)
-	{
-		// 应用滤除
-		minLuminance = min(minLuminance,UiFilterWhite);
-		maxLuminance = max(maxLuminance,UiFilterBlack);
-		/*
-		luminance += (luminance < UiFilterBlack) * UiFilterBlack;
-		Luminance -= (Luminance > UiFilterWhite) * UiFilterWhite;
-		*/
-	}
 	
 	// 存储到TextureMip0（R通道存亮度，G通道存相同值用于后续处理）
 	return float4(maxLuminance, minLuminance, 0.0, 1.0);
@@ -520,8 +914,8 @@ float4 Pass3_Reduction3(float4 position : SV_Position, float2 texcoord : TexCoor
 	return ReductionPass(position, texcoord, SamplerMip2, 1.0 / 64.0);
 }
 
-// Pass 5：第四次4x4归约（16x16 -> 4x4）
-float4 Pass4_Reduction5(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
+// Pass 4：第四次4x4归约（16x16 -> 4x4）
+float4 Pass4_Reduction4(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
 {
 	return ReductionPass(position, texcoord, SamplerMip3, 1.0 / 16.0);
 }
@@ -532,8 +926,10 @@ float4 Pass5_Reduction5(float4 position : SV_Position, float2 texcoord : TexCoor
 	// 执行正常的4x4归约
 	float4 result = ReductionPass(position, texcoord, SamplerMip4, 1.0 / 4.0);
 	
-	// 读取上一帧的平滑值（从TextureMip5的B和A通道）
-	float4 prevFrame = tex2D(SamplerMip5, float2(0.5, 0.5));
+	// 读取上一帧的平滑值（从TexturePrev5的B和A通道）
+	float4 prevFrame = tex2D(SamplerPrev5, float2(0.5, 0.5));
+	float prevMin = prevFrame.r; // 上一帧的最小值（当前帧的R通道）
+	float prevMax = prevFrame.g; // 上一帧的最大值（当前帧的G通道）
 	float prevSmoothMin = prevFrame.b;
 	float prevSmoothMax = prevFrame.a;
 	
@@ -577,8 +973,15 @@ float4 Pass5_Reduction5(float4 position : SV_Position, float2 texcoord : TexCoor
 	return result;
 }
 
+float4 Pass5_SavePrev(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
+{
+	// 直接将当前帧的结果保存到TexturePrev5，用于下一帧的平滑计算
 
-// Pass 6：最终颜色校准
+	return tex2D(SamplerMip5, float2(0.5, 0.5));
+}
+
+
+// Pass 7：最终颜色校准
 float3 Pass6_FinalCalibration(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
 {
 	// 检查校准模式
@@ -607,7 +1010,6 @@ float3 Pass6_FinalCalibration(float4 position : SV_Position, float2 texcoord : T
 		{
 			color = float3(1,0,0);
 		}
-		//color = all(clamp(luminance,UiFilterBlack,UiFilterWhite));
 	}
 
 	// 将texcoord转换为像素坐标（用于调试视图）
@@ -616,21 +1018,21 @@ float3 Pass6_FinalCalibration(float4 position : SV_Position, float2 texcoord : T
 	
 	// 获取统计结果
 	float minColor = 0.0;
-	float useingMinColor = 0.0;
+	float usingMinColor = 0.0;
 	float maxColor = 1000.0;
-	float useingMaxColor = 1000.0;
+	float usingMaxColor = 1000.0;
 
 	// 从最终1x1纹理读取结果
-	float4 finalStats = tex2D(SamplerMip5, float2(0.5, 0.5));
+	float4 finalStats = tex2D(SamplerPrev5, float2(0.5, 0.5));
 	minColor = finalStats.r;
 	maxColor = finalStats.g;
-	useingMinColor = finalStats.b;
-	useingMaxColor = finalStats.a;
+	usingMinColor = finalStats.b;
+	usingMaxColor = finalStats.a;
 
 	
 	// 防止除零
 	maxColor = max(maxColor, minColor + 0.001);
-	useingMaxColor = max(useingMaxColor,useingMinColor + 0.1);
+	usingMaxColor = max(usingMaxColor, usingMinColor + 0.1);
 	
 	// 调试视图 - 显示规约纹理
 	[branch]
@@ -781,14 +1183,39 @@ float3 Pass6_FinalCalibration(float4 position : SV_Position, float2 texcoord : T
 			return BORDER_COLOR;
 		}
 	}
+	
+	// 显示UI剔除矩形边框（如果启用）
+	[branch]
+	if (ShowRectBorder)
+	{
+		// 青色边框颜色
+		const float3 RECT_BORDER_COLOR = float3(0.0, 1.0, 1.0); // 青色
+		
+		// 边框宽度（2像素）
+		const float RECT_BORDER_WIDTH = 2.0;
+		
+		// 计算归一化的边框宽度
+		float rectBorderWidthX = RECT_BORDER_WIDTH / BUFFER_WIDTH;
+		float rectBorderWidthY = RECT_BORDER_WIDTH / BUFFER_HEIGHT;
+		
+		// 计算当前像素的归一化坐标
+		float2 normalizedCoord = float2(x / float(BUFFER_WIDTH), y / float(BUFFER_HEIGHT));
+		
+		// 检查是否在任何启用的矩形边框内
+		if (IsInAnyRectBorder(normalizedCoord, rectBorderWidthX, rectBorderWidthY))
+		{
+			return RECT_BORDER_COLOR;
+		}
+	}
+	
 	if (EnableAutoStats)
 	{
 		// 应用颜色校准
-		minColor = float3(minColor, minColor, minColor);
-		maxColor = float3(maxColor, maxColor, maxColor);
-		useingMinColor = float3(useingMinColor, useingMinColor, useingMinColor);
-		useingMaxColor = float3(useingMaxColor, useingMaxColor, useingMaxColor);
-		color = ColorCalibration(color, minColor, maxColor,useingMinColor,useingMaxColor);
+		float3 minColorVec = float3(minColor, minColor, minColor);
+		float3 maxColorVec = float3(maxColor, maxColor, maxColor);
+		float3 usingMinColorVec = float3(usingMinColor, usingMinColor, usingMinColor);
+		float3 usingMaxColorVec = float3(usingMaxColor, usingMaxColor, usingMaxColor);
+		color = ColorCalibration(color, minColorVec, maxColorVec, usingMinColorVec, usingMaxColorVec);
 	}
 	return color;
 }
@@ -829,7 +1256,7 @@ technique SCAC
 	pass Pass4_Reduction4
 	{
 		VertexShader = PostProcessVS;
-		PixelShader = Pass4_Reduction5;
+		PixelShader = Pass4_Reduction4;
 		RenderTarget = TextureMip4;
 	}
 	
@@ -838,6 +1265,13 @@ technique SCAC
 		VertexShader = PostProcessVS;
 		PixelShader = Pass5_Reduction5;
 		RenderTarget = TextureMip5;
+	}
+
+	pass Pass5_SavePrev
+	{
+		VertexShader = PostProcessVS;
+		PixelShader = Pass5_SavePrev;
+		RenderTarget = TexturePrev5;
 	}
 	
 	pass Pass6_Final
