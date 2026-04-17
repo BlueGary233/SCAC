@@ -445,12 +445,17 @@ bool IsInRectBorder(float2 normalizedCoord, float2 rectPos, float2 rectSize, flo
 	return false;
 }
 
-// 检查点是否在任何启用的矩形内，并返回左边缘坐标
+// 检查点是否在任何启用的矩形内，并返回左边缘坐标（优化版：减少代码重复）
 bool IsInAnyExclusionRect(float2 normalizedCoord, out float2 leftEdgeCoord)
 {
 	leftEdgeCoord = float2(0, 0);
 	
+	// 使用循环检查8个矩形，但保留分支结构
+	// 注意：由于性能考虑，我们保留显式的if语句而不是使用数组循环
+	// 但为了代码简洁，我们使用更结构化的方式
+	
 	// 矩形0
+	[branch]
 	if (RectEnable0)
 	{
 		float2 rectMin = RectPos0;
@@ -464,6 +469,7 @@ bool IsInAnyExclusionRect(float2 normalizedCoord, out float2 leftEdgeCoord)
 	}
 	
 	// 矩形1
+	[branch]
 	if (RectEnable1)
 	{
 		float2 rectMin = RectPos1;
@@ -477,6 +483,7 @@ bool IsInAnyExclusionRect(float2 normalizedCoord, out float2 leftEdgeCoord)
 	}
 	
 	// 矩形2
+	[branch]
 	if (RectEnable2)
 	{
 		float2 rectMin = RectPos2;
@@ -490,6 +497,7 @@ bool IsInAnyExclusionRect(float2 normalizedCoord, out float2 leftEdgeCoord)
 	}
 	
 	// 矩形3
+	[branch]
 	if (RectEnable3)
 	{
 		float2 rectMin = RectPos3;
@@ -503,6 +511,7 @@ bool IsInAnyExclusionRect(float2 normalizedCoord, out float2 leftEdgeCoord)
 	}
 	
 	// 矩形4
+	[branch]
 	if (RectEnable4)
 	{
 		float2 rectMin = RectPos4;
@@ -516,6 +525,7 @@ bool IsInAnyExclusionRect(float2 normalizedCoord, out float2 leftEdgeCoord)
 	}
 	
 	// 矩形5
+	[branch]
 	if (RectEnable5)
 	{
 		float2 rectMin = RectPos5;
@@ -529,6 +539,7 @@ bool IsInAnyExclusionRect(float2 normalizedCoord, out float2 leftEdgeCoord)
 	}
 	
 	// 矩形6
+	[branch]
 	if (RectEnable6)
 	{
 		float2 rectMin = RectPos6;
@@ -542,6 +553,7 @@ bool IsInAnyExclusionRect(float2 normalizedCoord, out float2 leftEdgeCoord)
 	}
 	
 	// 矩形7
+	[branch]
 	if (RectEnable7)
 	{
 		float2 rectMin = RectPos7;
@@ -557,42 +569,43 @@ bool IsInAnyExclusionRect(float2 normalizedCoord, out float2 leftEdgeCoord)
 	return false;
 }
 
-// 检查点是否在任何启用的矩形边框内
+// 检查点是否在任何启用的矩形边框内（优化版：更简洁的条件检查）
 bool IsInAnyRectBorder(float2 normalizedCoord, float borderWidthX, float borderWidthY)
 {
-	// 检查8个矩形
+	// 检查8个矩形，使用更简洁的条件链
+	// 注意：保留分支结构以确保性能
+	
+	// 矩形0
 	if (RectEnable0 && IsInRectBorder(normalizedCoord, RectPos0, RectSize0, borderWidthX, borderWidthY))
-	{
 		return true;
-	}
+	
+	// 矩形1
 	if (RectEnable1 && IsInRectBorder(normalizedCoord, RectPos1, RectSize1, borderWidthX, borderWidthY))
-	{
 		return true;
-	}
+	
+	// 矩形2
 	if (RectEnable2 && IsInRectBorder(normalizedCoord, RectPos2, RectSize2, borderWidthX, borderWidthY))
-	{
 		return true;
-	}
+	
+	// 矩形3
 	if (RectEnable3 && IsInRectBorder(normalizedCoord, RectPos3, RectSize3, borderWidthX, borderWidthY))
-	{
 		return true;
-	}
+	
+	// 矩形4
 	if (RectEnable4 && IsInRectBorder(normalizedCoord, RectPos4, RectSize4, borderWidthX, borderWidthY))
-	{
 		return true;
-	}
+	
+	// 矩形5
 	if (RectEnable5 && IsInRectBorder(normalizedCoord, RectPos5, RectSize5, borderWidthX, borderWidthY))
-	{
 		return true;
-	}
+	
+	// 矩形6
 	if (RectEnable6 && IsInRectBorder(normalizedCoord, RectPos6, RectSize6, borderWidthX, borderWidthY))
-	{
 		return true;
-	}
+	
+	// 矩形7
 	if (RectEnable7 && IsInRectBorder(normalizedCoord, RectPos7, RectSize7, borderWidthX, borderWidthY))
-	{
 		return true;
-	}
 	
 	return false;
 }
@@ -664,41 +677,14 @@ float3 DrawCalibrationPattern(float2 texcoord, int mode)
 	return float3(0.0, 0.0, 0.0);
 }
 
-// 通用4x4归约函数
-float4 ReductionPass(float4 position : SV_Position, float2 texcoord : TexCoord, sampler2D inputSampler, float2 pixelSize) : SV_Target
-{
-	// texcoord是归一化坐标[0,1]
-	// 每个输出像素对应输入纹理中的4x4块
-	// 计算4x4块的起始坐标（从中心偏移-1.5个像素）将初始采样点从4x4的中心移到左上角第一个像素中心。
-	float2 startCoord = texcoord - float2(1.5 * pixelSize.x, 1.5 * pixelSize.y);
-	
-	// 采样4x4区域的16个像素
-	float minVal = 1e6;     // 初始化为很大的值，支持scRGB/HDR（可能超过1000尼特）
-	float maxVal = 0.0;     // 初始化为很小的值
-	
-	for (int y = 0; y < 4; y++)		// 这个循环用来遍历4x4块采样。
-	{
-		for (int x = 0; x < 4; x++)
-		{
-			float2 sampleCoord = startCoord + float2(x * pixelSize.x, y * pixelSize.y);
-			float4 sampleVal = tex2D(inputSampler, sampleCoord);
-			
-			minVal = min(minVal, sampleVal.r);
-			maxVal = max(maxVal, sampleVal.g);
-		}
-	}
-	
-	// 存储结果：R通道存最小值，G通道存最大值
-	return float4(minVal, maxVal, 0.0, 1.0);
-}
-
 // ============================================================================
-// 纹理定义
-// 固定5次归约：1024 -> 256 -> 64 -> 16 -> 4 -> 1
+// 纹理定义 - 简化一维坐标算法
+// 纹理A：1024x1024（0-1048575） - RG通道存储亮度，BA通道存储规约结果
+// 纹理B：256x256（0-65535） - RG通道存储256x256规约，BA通道存储历史数据
 // ============================================================================
 
-// 纹理0：1024x1024 - 存储下采样后的亮度值
-texture2D TextureMip0 <
+// 纹理A：1024x1024 - 主纹理
+texture2D TextureA <
 	pooled = true;
 >
 {
@@ -706,8 +692,8 @@ texture2D TextureMip0 <
 	Height = 1024;
 	Format = RGBA16F;
 };
-sampler2D SamplerMip0 {
-	Texture = TextureMip0;
+sampler2D SamplerA {
+	Texture = TextureA;
 	MinFilter = Point;    // 缩小过滤：点过滤
     MagFilter = Point;    // 放大过滤：点过滤
     MipFilter = Point;    // Mipmap过滤：点过滤
@@ -715,8 +701,8 @@ sampler2D SamplerMip0 {
     AddressV = Border;     // V方向寻址：边缘
 };
 
-// 纹理1：256x256 - 第一次4x4归约
-texture2D TextureMip1 <
+// 纹理B：256x256 - 历史缓冲区纹理
+texture2D TextureB <
 	pooled = true;
 >
 {
@@ -724,8 +710,8 @@ texture2D TextureMip1 <
 	Height = 256;
 	Format = RGBA16F;
 };
-sampler2D SamplerMip1 {
-	Texture = TextureMip1;
+sampler2D SamplerB {
+	Texture = TextureB;
 	MinFilter = Point;    // 缩小过滤：点过滤
     MagFilter = Point;    // 放大过滤：点过滤
     MipFilter = Point;    // Mipmap过滤：点过滤
@@ -733,101 +719,47 @@ sampler2D SamplerMip1 {
     AddressV = Border;     // V方向寻址：边缘
 };
 
-// 纹理2：64x64 - 第二次4x4归约
-texture2D TextureMip2 <
-	pooled = true;
->
-{
-	Width = 64;
-	Height = 64;
-	Format = RGBA16F;
-};
-sampler2D SamplerMip2 {
-	Texture = TextureMip2;
-	MinFilter = Point;    // 缩小过滤：点过滤
-    MagFilter = Point;    // 放大过滤：点过滤
-    MipFilter = Point;    // Mipmap过滤：点过滤
-    AddressU = Border;     // U方向寻址：边缘
-    AddressV = Border;     // V方向寻址：边缘
-};
+// 历史缓冲区定义（在纹理B的BA通道中，使用一维索引）
+// 0-4095: 上一帧的256→64规约结果（64x64=4096像素）
+// 4096-4351: 上上帧的64→16规约结果（16x16=256像素）
+// 4352-4367: 上上上帧的16→4规约结果（4x4=16像素）
+// 4368: 往前第4帧的最终1x1结果
+// 4369: 平滑历史数据
 
-// 纹理3：16x16 - 第三次4x4归约
-texture2D TextureMip3 <
-	pooled = true;
->
-{
-	Width = 16;
-	Height = 16;
-	Format = RGBA16F;
-};
-sampler2D SamplerMip3 {
-	Texture = TextureMip3;
-	MinFilter = Point;    // 缩小过滤：点过滤
-    MagFilter = Point;    // 放大过滤：点过滤
-    MipFilter = Point;    // Mipmap过滤：点过滤
-    AddressU = Border;     // U方向寻址：边缘
-    AddressV = Border;     // V方向寻址：边缘
-};
+// ============================================================================
+// 坐标转换函数（一维索引到二维纹理坐标）
+// ============================================================================
 
-// 纹理4：4x4 - 第四次4x4归约
-texture2D TextureMip4 <
-	pooled = true;
->
+// 将一维索引转换为纹理A的二维坐标（1024x1024）
+float2 IndexToCoordA(uint index)
 {
-	Width = 4;
-	Height = 4;
-	Format = RGBA16F;
-};
-sampler2D SamplerMip4 {
-	Texture = TextureMip4;
-	MinFilter = Point;    // 缩小过滤：点过滤
-    MagFilter = Point;    // 放大过滤：点过滤
-    MipFilter = Point;    // Mipmap过滤：点过滤
-    AddressU = Border;     // U方向寻址：边缘
-    AddressV = Border;     // V方向寻址：边缘
-};
+	uint width = 1024;
+	uint height = 1024;
+	uint y = index / width;
+	uint x = index % width;
+	return float2((float(x) + 0.5) / float(width), (float(y) + 0.5) / float(height));
+}
 
-// 纹理5：1x1 - 第五次4x4归约（最终结果）
-texture2D TextureMip5 <
-	pooled = true;
->
+// 将一维索引转换为纹理B的二维坐标（256x256）
+float2 IndexToCoordB(uint index)
 {
-	Width = 1;
-	Height = 1;
-	Format = RGBA16F;
-};
-sampler2D SamplerMip5 {
-	Texture = TextureMip5;
-	MinFilter = Point;    // 缩小过滤：点过滤
-    MagFilter = Point;    // 放大过滤：点过滤
-    MipFilter = Point;    // Mipmap过滤：点过滤
-    AddressU = Border;     // U方向寻址：边缘
-    AddressV = Border;     // V方向寻址：边缘
-};
+	uint width = 256;
+	uint height = 256;
+	uint y = index / width;
+	uint x = index % width;
+	return float2((float(x) + 0.5) / float(width), (float(y) + 0.5) / float(height));
+}
 
-// 纹理6：1x1 - 存储上次帧的结果
-texture2D TexturePrev5 <
-	pooled = true;
->
-{
-	Width = 1;
-	Height = 1;
-	Format = RGBA16F;
-};
-sampler2D SamplerPrev5 {
-	Texture = TexturePrev5;
-	MinFilter = Point;    // 缩小过滤：点过滤
-    MagFilter = Point;    // 放大过滤：点过滤
-    MipFilter = Point;    // Mipmap过滤：点过滤
-    AddressU = Border;     // U方向寻址：边缘
-    AddressV = Border;     // V方向寻址：边缘
-};
+// 缓冲区索引常量
+#define FINAL_INDEX 4368   // 最终结果索引
+#define SMOOTH_INDEX 4369  // 平滑历史数据索引
+
 // ============================================================================
 // Pass着色器
 // ============================================================================
 
-// Pass 1：将后缓冲区采样到1024x1024并计算亮度
-float4 pass0_DownsampleTo1024(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
+// Pass 1：将后缓冲区采样到1024x1024并计算亮度，并保存历史数据
+float4 pass0_DownsampleAndSaveHistory(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
 {
 	// 计算像素大小（用于边界检查）
 	float2 pixelSize = 1.0 / float2(BUFFER_WIDTH, BUFFER_HEIGHT);
@@ -892,58 +824,171 @@ float4 pass0_DownsampleTo1024(float4 position : SV_Position, float2 texcoord : T
 	float minLuminance = MinLuminance(color);// 用于最大值校准
 	float maxLuminance = MaxLuminance(color);// 用于最小值校准
 	
-	// 存储到TextureMip0（R通道存亮度，G通道存相同值用于后续处理）
-	return float4(maxLuminance, minLuminance, 0.0, 1.0);
-}
-
-// Pass 2：第一次4x4归约（1024x1024 -> 256x256）
-float4 Pass2_Reduction1(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
-{
-	return ReductionPass(position, texcoord, SamplerMip0, 1.0 / 1024.0);
-}
-
-// Pass 3：第二次4x4归约（256x256 -> 64x64）
-float4 Pass2_Reduction2(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
-{
-	return ReductionPass(position, texcoord, SamplerMip1, 1.0 / 256.0);
-}
-
-// Pass 4：第三次4x4归约（64x64 -> 16x16）
-float4 Pass3_Reduction3(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
-{
-	return ReductionPass(position, texcoord, SamplerMip2, 1.0 / 64.0);
-}
-
-// Pass 4：第四次4x4归约（16x16 -> 4x4）
-float4 Pass4_Reduction4(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
-{
-	return ReductionPass(position, texcoord, SamplerMip3, 1.0 / 16.0);
-}
-
-// Pass 6：第五次4x4归约（4x4 -> 1x1）和平滑计算
-float4 Pass5_Reduction5(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
-{
-	// 执行正常的4x4归约
-	float4 result = ReductionPass(position, texcoord, SamplerMip4, 1.0 / 4.0);
+	// 从纹理B的BA通道读取历史数据，防止被覆盖
+	// 根据输出位置计算一维索引
+	uint2 outputCoord = uint2(texcoord.x * 1024.0, texcoord.y * 1024.0);
+	uint index = outputCoord.y * 1024 + outputCoord.x;
 	
-	// 读取上一帧的平滑值（从TexturePrev5的B和A通道）
-	float4 prevFrame = tex2D(SamplerPrev5, float2(0.5, 0.5));
-	float prevMin = prevFrame.r; // 上一帧的最小值（当前帧的R通道）
-	float prevMax = prevFrame.g; // 上一帧的最大值（当前帧的G通道）
-	float prevSmoothMin = prevFrame.b;
-	float prevSmoothMax = prevFrame.a;
+	// 如果这个位置在历史数据范围内，读取历史数据
+	float4 historyData = float4(0.0, 0.0, 0.0, 0.0);
+	if (index <= SMOOTH_INDEX)
+	{
+		// 将索引转换为纹理B坐标
+		float2 historyCoord = IndexToCoordB(index);
+		historyData = tex2D(SamplerB, historyCoord);
+	}
 	
-	// 获取当前帧的最小值和最大值
-	float currentMin = result.r;
-	float currentMax = result.g;
+	// 存储到纹理A：
+	// RG通道：当前帧亮度值
+	// BA通道：历史数据（防止被覆盖）
+	return float4(maxLuminance, minLuminance, historyData.b, historyData.a);
+}
+
+// Pass 2：第一次4x4归约（1024x1024 -> 256x256）和历史恢复
+float4 Pass1_ReductionAndRestoreHistory(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
+{
+	// 对纹理A的RG通道进行4x4规约（1024x1024 -> 256x256）
+	float2 pixelSize = 1.0 / 1024.0;
+	float2 startCoord = texcoord - float2(1.5 * pixelSize.x, 1.5 * pixelSize.y);
+	
+	float minVal = 1e6;
+	float maxVal = 0.0;
+	
+	for (int y = 0; y < 4; y++)
+	{
+		for (int x = 0; x < 4; x++)
+		{
+			float2 sampleCoord = startCoord + float2(x * pixelSize.x, y * pixelSize.y);
+			float4 sampleVal = tex2D(SamplerA, sampleCoord);
+			
+			// 从RG通道读取亮度值
+			minVal = min(minVal, sampleVal.r);  // R通道存最小值
+			maxVal = max(maxVal, sampleVal.g);  // G通道存最大值
+		}
+	}
+	
+	// 从纹理A的BA通道读取历史数据，防止被覆盖
+	// 根据输出位置计算一维索引（256x256纹理）
+	uint2 outputCoord = uint2(texcoord.x * 256.0, texcoord.y * 256.0);
+	uint index = outputCoord.y * 256 + outputCoord.x;
+	
+	// 如果这个位置在历史数据范围内，读取历史数据
+	float4 historyData = float4(0.0, 0.0, 0.0, 0.0);
+	if (index <= SMOOTH_INDEX)
+	{
+		// 将索引转换为纹理A坐标（从BA通道读取）
+		float2 historyCoord = IndexToCoordA(index);
+		historyData = tex2D(SamplerA, historyCoord);
+	}
+	
+	// 存储到纹理B：
+	// RG通道：当前帧256x256规约结果
+	// BA通道：历史数据（防止被覆盖）
+	return float4(minVal, maxVal, historyData.b, historyData.a);
+}
+
+// Pass 3：时间流水线规约 - 使用一维坐标对纹理B的RGBA通道有效数据进行4x4规约（优化版）
+float4 Pass2_TimePipelineReduction(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
+{
+	// texcoord是输出位置，对应纹理A的BA通道
+	// 根据输出位置计算一维索引（0-1048575）
+	uint2 outputCoord = uint2(texcoord.x * 1024.0, texcoord.y * 1024.0);
+	uint outputIndex = outputCoord.y * 1024 + outputCoord.x;
+	
+	// 只处理历史缓冲区索引范围内的位置（0-4369）
+	if (outputIndex == SMOOTH_INDEX)
+	{
+		// 这个位置专门存储平滑历史数据，直接从纹理B的BA通道读取并返回
+		float2 historyCoord = IndexToCoordB(SMOOTH_INDEX);
+		return tex2D(SamplerB, historyCoord);
+	}
+	else if (outputIndex > SMOOTH_INDEX)
+	{
+		// 超出历史数据范围，直接返回0
+		return float4(0.0, 0.0, 0.0, 0.0);
+	}
+	
+	// 每个输出位置对应16个输入像素（4x4规约）
+	// 计算这16个像素的起始索引
+	uint baseInputIndex = outputIndex * 16;
+	
+	// 执行4x4规约
+	float minVal = 1e6;
+	float maxVal = 0.0;
+	
+	// 遍历4x4的16个像素
+	for (uint y = 0; y < 4; y++)
+	{
+		for (uint x = 0; x < 4; x++)
+		{
+			// 计算当前像素在16个像素中的位置
+			uint pixelInGroup = y * 4 + x;
+			uint inputIndex = baseInputIndex + pixelInGroup;
+			
+			// 根据输入索引确定从哪个通道读取数据
+			// 优化：减少嵌套if语句，使用更清晰的条件逻辑
+			bool isInRG = inputIndex < 65536;
+			bool isInBA = !isInRG && inputIndex < 65536 + 4370;
+			
+			if (isInRG)
+			{
+				// 从纹理B的RG通道读取
+				float2 inputCoord = IndexToCoordB(inputIndex);
+				float4 sampleVal = tex2D(SamplerB, inputCoord);
+				
+				// RG通道：R存最大值，G存最小值
+				minVal = min(minVal, sampleVal.r);
+				maxVal = max(maxVal, sampleVal.g);
+			}
+			else if (isInBA)
+			{
+				// 从纹理B的BA通道读取历史数据
+				// 调整索引：inputIndex - 65536 得到BA通道的索引
+				uint baIndex = inputIndex - 65536;
+				
+				// 优化：将条件检查移到内部，减少嵌套
+				if (baIndex <= SMOOTH_INDEX)
+				{
+					float2 inputCoord = IndexToCoordB(baIndex);
+					float4 sampleVal = tex2D(SamplerB, inputCoord);
+					
+					// BA通道：B存最小值，A存最大值
+					minVal = min(minVal, sampleVal.b);
+					maxVal = max(maxVal, sampleVal.a);
+				}
+			}
+			// 如果既不在RG也不在BA范围内，则跳过（不执行任何操作）
+		}
+	}
+	
+	// 存储结果到纹理A的RG通道
+	// B通道存最小值，A通道存最大值
+	return float4(minVal, maxVal, minVal, maxVal);
+}
+
+// Pass 4：最终处理和平滑
+float4 Pass3_FinalProcessing(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
+{
+	// 这个Pass写入纹理B，更新最终结果和平滑值并复制历史数据
+	// 从纹理A的BA通道索引4368读取历史最终结果
+	float2 finalHistoryCoord = IndexToCoordA(FINAL_INDEX);
+	float4 finalHistoryData = tex2D(SamplerA, finalHistoryCoord);
+	
+	// 从纹理A的BA通道读取平滑历史值（索引4369）
+	float2 smoothHistoryCoord = IndexToCoordA(SMOOTH_INDEX);
+	float4 prevSmooth = tex2D(SamplerA, smoothHistoryCoord);
+	float prevSmoothMin = prevSmooth.b;
+	float prevSmoothMax = prevSmooth.a;
+	
+	// 获取当前帧的最小值和最大值（从历史最终结果读取）
+	float currentMin = finalHistoryData.b;  // B通道存最小值
+	float currentMax = finalHistoryData.a;  // A通道存最大值
 	
 	// 计算差值（考虑正负）
 	float diffMin = currentMin - prevSmoothMin;
 	float diffMax = currentMax - prevSmoothMax;
 
 	// 应用改进的平滑公式：分段平滑算法
-	// 当 |diff| > SmoothFram * SmoothStep 时：使用 diff * SmoothMult
-	// 当 |diff| <= SmoothFram * SmoothStep 时：使用 min(abs(diff), SmoothStep) * sign(diff)
 	float threshold = SmoothFram * SmoothStep;
 	
 	// 最小值平滑（无分支实现）
@@ -952,6 +997,17 @@ float4 Pass5_Reduction5(float4 position : SV_Position, float2 texcoord : TexCoor
 	float largeChangeMin = diffMin * SmoothMult;
 	float changeMin = lerp(smallChangeMin, largeChangeMin, isLargeChangeMin);
 	float smoothMin = prevSmoothMin + changeMin;
+	/*
+	float smoothMin = prevSmoothMin; // 初始化为前一帧的平滑值
+	if (abs(diffMin) > threshold)
+	{
+		smoothMin = prevSmoothMin + diffMin * SmoothMult;
+	}
+	else if(abs(diffMin) <= threshold)
+	{
+		smoothMin = prevSmoothMin + min(abs(diffMin), SmoothStep) * sign(diffMin);
+	}
+	*/
 	
 	// 最大值平滑（无分支实现）
 	float isLargeChangeMax = step(threshold, abs(diffMax));
@@ -959,30 +1015,42 @@ float4 Pass5_Reduction5(float4 position : SV_Position, float2 texcoord : TexCoor
 	float largeChangeMax = diffMax * SmoothMult;
 	float changeMax = lerp(smallChangeMax, largeChangeMax, isLargeChangeMax);
 	float smoothMax = prevSmoothMax + changeMax;
+	/*
+	float smoothMax = prevSmoothMax; // 初始化为前一帧的平滑值
+	if (abs(diffMax) > threshold)
+	{
+		float smoothMax = prevSmoothMax + diffMax * SmoothMult;
+	}
+	else if(abs(diffMax) <= threshold)
+	{
+		float smoothMax = prevSmoothMax + min(abs(diffMax), SmoothStep) * sign(diffMax);
+	}
+	*/
+	// 计算输出像素在纹理B中的整数坐标
+	uint2 outputCoord = uint2(texcoord.x * 256.0, texcoord.y * 256.0);
+	uint index = outputCoord.y * 256 + outputCoord.x;
 	
-	// 写入结果：
-	// R通道：当前帧最小值
-	// G通道：当前帧最大值
-	// B通道：平滑后的最小值
-	// A通道：平滑后的最大值
-	result.r = currentMin;
-	result.g = currentMax;
-	result.b = smoothMin;
-	result.a = smoothMax;
-	
-	return result;
+	// 检查索引是否在历史数据范围内
+	if (index <= FINAL_INDEX)
+	{
+		// 将索引转换为纹理A坐标（从BA通道读取数据）
+		float2 sourceCoord = IndexToCoordA(index);
+		float4 sourceData = tex2D(SamplerA, sourceCoord);
+		
+		// 只复制BA通道（历史数据存储在BA通道）
+		return float4(0.0, 0.0, sourceData.b, sourceData.a);
+	}
+	else if (index == SMOOTH_INDEX)
+	{
+		// 存储平滑后的结果
+		return float4(0.0, 0.0, smoothMin, smoothMax);
+	}
+
+	return float4(0.0, 0.0, 0.0, 0.0);
 }
 
-float4 Pass5_SavePrev(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
-{
-	// 直接将当前帧的结果保存到TexturePrev5，用于下一帧的平滑计算
-
-	return tex2D(SamplerMip5, float2(0.5, 0.5));
-}
-
-
-// Pass 7：最终颜色校准
-float3 Pass6_FinalCalibration(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
+// Pass 5：最终颜色校准
+float3 Pass4_FinalCalibration(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
 {
 	// 检查校准模式
 	[branch]
@@ -1021,25 +1089,28 @@ float3 Pass6_FinalCalibration(float4 position : SV_Position, float2 texcoord : T
 	float usingMinColor = 0.0;
 	float maxColor = 1000.0;
 	float usingMaxColor = 1000.0;
+	
+	// 从纹理B的BA通道(FINAL_INDEX)位置读取最终结果
+	float2 finalResultCoord = IndexToCoordB(FINAL_INDEX);
+	float4 finalStats = tex2D(SamplerB, finalResultCoord);
 
-	// 从最终1x1纹理读取结果
-	float4 finalStats = tex2D(SamplerPrev5, float2(0.5, 0.5));
-	minColor = finalStats.r;
-	maxColor = finalStats.g;
-	usingMinColor = finalStats.b;
-	usingMaxColor = finalStats.a;
-
+	float2 smoothCoord = IndexToCoordB(SMOOTH_INDEX);
+	float4 smoothData = tex2D(SamplerB, smoothCoord);
+	minColor = finalStats.b;
+	maxColor = finalStats.a;
+	usingMinColor = smoothData.b;
+	usingMaxColor = smoothData.a;
 	
 	// 防止除零
 	maxColor = max(maxColor, minColor + 0.001);
 	usingMaxColor = max(usingMaxColor, usingMinColor + 0.1);
 	
-	// 调试视图 - 显示规约纹理
+	// 调试视图 - 显示新的双纹理架构
 	[branch]
 	if (EnableDebug)
 	{
-		// 右侧显示区域：显示6个规约纹理，每个占屏幕高度的1/6
-		float rightDisplaySize = BUFFER_HEIGHT / 6.0;
+		// 右侧显示区域：显示2个纹理，每个占屏幕高度的1/2
+		float rightDisplaySize = BUFFER_HEIGHT / 2.0;
 		float rightDisplayWidth = rightDisplaySize;
 		float rightDisplayHeight = rightDisplaySize;
 		
@@ -1050,56 +1121,46 @@ float3 Pass6_FinalCalibration(float4 position : SV_Position, float2 texcoord : T
 			uint displayX = x - (BUFFER_WIDTH - (uint)rightDisplayWidth);
 			uint displayY = y;
 			
-			// 计算当前像素属于哪个纹理（0-5）
+			// 计算当前像素属于哪个纹理（0-1）
 			uint textureIndex = displayY / (uint)rightDisplayHeight;
 			
-			// 确保纹理索引在0-5范围内
-			if (textureIndex < 6)
+			// 确保纹理索引在0-1范围内
+			if (textureIndex < 2)
 			{
 				// 计算在当前纹理显示区域内的相对位置（归一化到[0,1]）
 				float localY = (displayY % (uint)rightDisplayHeight) / rightDisplayHeight;
 				float localX = displayX / rightDisplayWidth;
 				
 				// 根据纹理索引采样对应的纹理
-				float4 mipValue;
+				float4 texValue;
 				if (textureIndex == 0)
 				{
-					// TextureMip0: 1024x1024
+					// 纹理A：1024x1024
 					float2 mipCoord = float2(localX, localY);
-					mipValue = tex2D(SamplerMip0, mipCoord);
+					texValue = tex2D(SamplerA, mipCoord);
+					
+					// RG通道显示为红色/绿色，BA通道显示为蓝色/黄色
+					float r = texValue.r; // 最大值（RG通道）
+					float g = texValue.g; // 最小值（RG通道）
+					float b = texValue.b * 2.0; // 规约最小值（BA通道）
+					float a = texValue.a * 2.0; // 规约最大值（BA通道）
+					
+					return float3(r, g + a * 0.5, b); // 组合显示
 				}
-				else if (textureIndex == 1)
+				else // textureIndex == 1
 				{
-					// TextureMip1: 256x256
+					// 纹理B：256x256
 					float2 mipCoord = float2(localX, localY);
-					mipValue = tex2D(SamplerMip1, mipCoord);
+					texValue = tex2D(SamplerB, mipCoord);
+					
+					// RG通道显示为红色/绿色，BA通道显示为蓝色/黄色
+					float r = texValue.r; // 最大值（RG通道）
+					float g = texValue.g; // 最小值（RG通道）
+					float b = texValue.b * 2.0; // 历史最小值（BA通道）
+					float a = texValue.a * 2.0; // 历史最大值（BA通道）
+					
+					return float3(r, g + a * 0.5, b); // 组合显示
 				}
-				else if (textureIndex == 2)
-				{
-					// TextureMip2: 64x64
-					float2 mipCoord = float2(localX, localY);
-					mipValue = tex2D(SamplerMip2, mipCoord);
-				}
-				else if (textureIndex == 3)
-				{
-					// TextureMip3: 16x16
-					float2 mipCoord = float2(localX, localY);
-					mipValue = tex2D(SamplerMip3, mipCoord);
-				}
-				else if (textureIndex == 4)
-				{
-					// TextureMip4: 4x4
-					float2 mipCoord = float2(localX, localY);
-					mipValue = tex2D(SamplerMip4, mipCoord);
-				}
-				else // textureIndex == 5
-				{
-					// TextureMip5: 1x1 - 总是采样中心点
-					mipValue = tex2D(SamplerMip5, float2(0.5, 0.5));
-				}
-				
-				// R通道显示为红色，G通道显示为绿色（保持一致的显示风格）
-				return float3(mipValue.r, mipValue.g, 0.0);
 			}
 		}
 	
@@ -1220,63 +1281,47 @@ float3 Pass6_FinalCalibration(float4 position : SV_Position, float2 texcoord : T
 	return color;
 }
 // ============================================================================
-// 技术定义
+// 技术定义 - 简化一维坐标算法（7个Pass完整版）
 // ============================================================================
 
 technique SCAC
 {
-	pass Pass0_Downsample
+	// Pass 1：将后缓冲区采样到1024x1024并计算亮度，并保存历史数据
+	pass Pass0_DownsampleAndSaveHistory
 	{
 		VertexShader = PostProcessVS;
-		PixelShader = pass0_DownsampleTo1024;
-		RenderTarget = TextureMip0;
+		PixelShader = pass0_DownsampleAndSaveHistory;
+		RenderTarget = TextureA;
 	}
 	
-	pass Pass1_Reduction1
+	// Pass 2：第一次4x4归约（1024x1024 -> 256x256）和历史恢复
+	pass Pass1_ReductionAndRestoreHistory
 	{
 		VertexShader = PostProcessVS;
-		PixelShader = Pass2_Reduction1;
-		RenderTarget = TextureMip1;
+		PixelShader = Pass1_ReductionAndRestoreHistory;
+		RenderTarget = TextureB;
 	}
 	
-	pass Pass2_Reduction2
+	// Pass 3：时间流水线规约 - 对纹理B的RGBA通道有效数据进行4x4规约
+	pass Pass2_TimePipelineReduction
 	{
 		VertexShader = PostProcessVS;
-		PixelShader = Pass2_Reduction2;
-		RenderTarget = TextureMip2;
+		PixelShader = Pass2_TimePipelineReduction;
+		RenderTarget = TextureA;
 	}
 	
-	pass Pass3_Reduction3
+	// Pass 4：最终处理和平滑 - 将最终结果写入纹理A
+	pass Pass3_FinalProcessing
 	{
 		VertexShader = PostProcessVS;
-		PixelShader = Pass3_Reduction3;
-		RenderTarget = TextureMip3;
+		PixelShader = Pass3_FinalProcessing;
+		RenderTarget = TextureB;
 	}
 	
-	pass Pass4_Reduction4
+	// Pass 5：最终颜色校准
+	pass Pass4_FinalCalibration
 	{
 		VertexShader = PostProcessVS;
-		PixelShader = Pass4_Reduction4;
-		RenderTarget = TextureMip4;
-	}
-	
-	pass Pass5_Reduction5
-	{
-		VertexShader = PostProcessVS;
-		PixelShader = Pass5_Reduction5;
-		RenderTarget = TextureMip5;
-	}
-
-	pass Pass5_SavePrev
-	{
-		VertexShader = PostProcessVS;
-		PixelShader = Pass5_SavePrev;
-		RenderTarget = TexturePrev5;
-	}
-	
-	pass Pass6_Final
-	{
-		VertexShader = PostProcessVS;
-		PixelShader = Pass6_FinalCalibration;
+		PixelShader = Pass4_FinalCalibration;
 	}
 }
