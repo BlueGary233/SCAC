@@ -360,35 +360,15 @@ uniform float2 CustomAreaSize <
 	ui_tooltip = "自定义采样区域的大小/Size of custom sampling area. 1.0 = default size (1024x1024 pixels).";
 > = float2(1.0, 1.0);
 
-uniform float SmoothStep <
-    ui_text = "平滑步长";
+uniform float SmoothResponseFram <
+    ui_text = "平滑响应帧数";
 	ui_category = "Advance";
 	ui_type = "slider";
-	ui_label = "Smooth Step";
-	ui_tooltip = "平滑步长控制，值越大变化越不平滑/Smooth step control, larger value means less smooth change.";
-	ui_min = 0.0005; ui_max = 1.0;
-	ui_step = 0.0001f;
-> = 0.0005;
-
-uniform int SmoothFram <
-    ui_text = "曝光响应时间";
-	ui_category = "Advance";
-	ui_type = "slider";
-	ui_label = "Exposure Response Time";
-	ui_tooltip = "影响平滑算法中慢速响应部分的速度。值越大，曝光变化越慢/Affects the speed of the slow response part in the smoothing algorithm. Larger value means slower exposure change.";
-	ui_min = 1; ui_max = 60;
+	ui_label = "Smooth Response Fram";
+	ui_tooltip = "平滑响应帧数。值越大，亮度变化越慢。0 = 无平滑（完全追踪），300 = 约300帧完成大部分变化/Smoothing response in frames. Larger value = slower brightness changes. 0 = no smoothing, 300 = about 300 frames for most changes.";
+	ui_min = 0; ui_max = 300;
 	ui_step = 1;
-> = 20;
-
-uniform float SmoothMult <
-    ui_text = "曝光速度";
-	ui_category = "Advance";
-	ui_type = "slider";
-	ui_label = "exposure speed";
-	ui_tooltip = "影响平滑算法中快速响应部分的速度。值越大，曝光变化越快/Affects the speed of the fast response part in the smoothing algorithm. Larger value means faster exposure change.";
-	ui_min = 0.0; ui_max = 0.1;
-	ui_step = 0.001f;
-> = 0.015;
+> = 100;
 
 uniform bool EnableDebug <
 	ui_category = "Advance";
@@ -968,7 +948,7 @@ float4 Pass2_TimePipelineReduction(float4 position : SV_Position, float2 texcoor
 	return float4(minVal, maxVal, minVal, maxVal);
 }
 
-// Pass 4：最终处理和平滑
+// Pass 4：最终处理和平滑 - 响应时间控制的指数平滑
 float4 Pass3_FinalProcessing(float4 position : SV_Position, float2 texcoord : TexCoord) : SV_Target
 {
 	// 这个Pass写入纹理B，更新最终结果和平滑值并复制历史数据
@@ -986,48 +966,47 @@ float4 Pass3_FinalProcessing(float4 position : SV_Position, float2 texcoord : Te
 	float currentMin = finalHistoryData.b;  // B通道存最小值
 	float currentMax = finalHistoryData.a;  // A通道存最大值
 	
-	// 计算差值（考虑正负）
+	// 计算差值
 	float diffMin = currentMin - prevSmoothMin;
 	float diffMax = currentMax - prevSmoothMax;
 
-	// 应用改进的平滑公式：分段平滑算法
-	float threshold = SmoothFram * SmoothStep;
+	// ===== 响应帧数控制的指数平滑 =====
+	// 核心思想：根据响应帧数计算每帧的最大变化率
+	// 公式：maxAlpha = 1.0 - exp(-1 / responseFrames)
+	// 当 responseFrames = 0 时，maxAlpha = 1（完全追踪，无平滑）
+	// 当 responseFrames = 30 时，每帧变化约 3.3%，约30帧完成大部分变化
 	
-	// 最小值平滑（无分支实现）
-	float isLargeChangeMin = step(threshold, abs(diffMin));
-	float smallChangeMin = min(abs(diffMin), SmoothStep) * sign(diffMin);
-	float largeChangeMin = diffMin * SmoothMult;
-	float changeMin = lerp(smallChangeMin, largeChangeMin, isLargeChangeMin);
-	float smoothMin = prevSmoothMin + changeMin;
-	/*
-	float smoothMin = prevSmoothMin; // 初始化为前一帧的平滑值
-	if (abs(diffMin) > threshold)
+	// 计算每帧允许的最大变化率
+	// 使用指数平滑公式：alpha = 1 - exp(-1 / N)
+	// 其中 N = 响应帧数
+	float maxAlpha;
+	if (SmoothResponseFram <= 0.0)
 	{
-		smoothMin = prevSmoothMin + diffMin * SmoothMult;
+		maxAlpha = 1.0; // 无平滑，完全追踪
 	}
-	else if(abs(diffMin) <= threshold)
+	else
 	{
-		smoothMin = prevSmoothMin + min(abs(diffMin), SmoothStep) * sign(diffMin);
+		maxAlpha = 1.0 - exp(-1.0 / SmoothResponseFram);
 	}
-	*/
 	
-	// 最大值平滑（无分支实现）
-	float isLargeChangeMax = step(threshold, abs(diffMax));
-	float smallChangeMax = min(abs(diffMax), SmoothStep) * sign(diffMax);
-	float largeChangeMax = diffMax * SmoothMult;
-	float changeMax = lerp(smallChangeMax, largeChangeMax, isLargeChangeMax);
-	float smoothMax = prevSmoothMax + changeMax;
-	/*
-	float smoothMax = prevSmoothMax; // 初始化为前一帧的平滑值
-	if (abs(diffMax) > threshold)
-	{
-		float smoothMax = prevSmoothMax + diffMax * SmoothMult;
-	}
-	else if(abs(diffMax) <= threshold)
-	{
-		float smoothMax = prevSmoothMax + min(abs(diffMax), SmoothStep) * sign(diffMax);
-	}
-	*/
+	// 自适应平滑因子：基于相对变化率
+	// 相对变化越大，alpha 越接近 maxAlpha
+	// 相对变化越小，alpha 越小（更强平滑，过滤噪声）
+	const float epsilon = 0.001;
+	float relativeChangeMin = abs(diffMin) / max(abs(prevSmoothMin), epsilon);
+	float relativeChangeMax = abs(diffMax) / max(abs(prevSmoothMax), epsilon);
+	
+	// alpha = maxAlpha * (relativeChange / (relativeChange + 0.01))
+	// 当 relativeChange = 0.01（1%）时，alpha = maxAlpha * 0.5
+	// 当 relativeChange >> 0.01 时，alpha → maxAlpha
+	// 当 relativeChange << 0.01 时，alpha → 0
+	float adaptiveFactor = 0.01; // 1%的相对变化作为半速点
+	float alphaMin = maxAlpha * relativeChangeMin / (relativeChangeMin + adaptiveFactor);
+	float alphaMax = maxAlpha * relativeChangeMax / (relativeChangeMax + adaptiveFactor);
+	
+	// 应用平滑
+	float smoothMin = prevSmoothMin + diffMin * alphaMin;
+	float smoothMax = prevSmoothMax + diffMax * alphaMax;
 	// 计算输出像素在纹理B中的整数坐标
 	uint2 outputCoord = uint2(texcoord.x * 256.0, texcoord.y * 256.0);
 	uint index = outputCoord.y * 256 + outputCoord.x;
